@@ -46,6 +46,16 @@ Use with:
 ansible-playbook -i inventory/ec2.py --key-file=mockfog.pem --ssh-common-args="-o StrictHostKeyChecking=no" mockfog_network.yml
 ```
 
+### MockFog Info
+This role:
+- Fetches MockFog instance metadata and tags mapping
+- Data is stored in `mapping.csv` in the project directory
+
+Use with:
+```
+ansible-playbook -i inventory/ec2.py --key-file=mockfog.pem --ssh-common-args="-o StrictHostKeyChecking=no" mockfog_info.yml
+```
+
 ### MockFog Application
 This role:
 - deploys application on nodes and starts it
