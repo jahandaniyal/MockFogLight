@@ -1,11 +1,11 @@
 ---
-- name: Delete old folders
-  file:
-    path: "{{ item }}"
-    state: absent
-  with_items:
-    - "{{ folder }}"
-
+#- name: Delete old folders
+#  file:
+#    path: "{{ item }}"
+#    state: absent
+#  with_items:
+#    - "{{ folder }}"
+#
 - name: Install Docker SDK
   pip:
     name: docker
@@ -14,33 +14,38 @@
   service:
     name: docker
     state: started
+#
+#- name: Create ping application folder
+#  file:
+#    path: "{{ folder }}"
+#    state: directory
 
-- name: Create ping application folder
-  file:
-    path: "{{ folder }}"
-    state: directory
-
-- name: Write ping config
-  template:
-    src: env_file.env.j2
-    dest: "{{ folder }}/env_file.env"
+#- name: Write ping config
+#  template:
+#    src: env_file.env.j2
+#    dest: "{{ folder }}/env_file.env"
 
 - name: Kill all running docker containers
   shell: docker rm --force $(docker ps -aq) || true
 
 - name: Pull ping images
   docker_image:
-    name: willfarrell/ping
+    name: "{{ image_name }}"
     source: pull
     force_source: yes
 
 - name: Start ping application containers
   docker_container:
     name: "{{ container_name }}"
-    image: willfarrell/ping
+    image: "{{ image_name }}"
     state: started
     auto_remove: yes
     log_driver: journald
-    env_file: "{{ folder }}/env_file.env"
-    volumes:
-      - "{{ folder }}/env_file.env:{{ folder }}/env_file.env"
+    exposed_ports: "{{ expose }}"
+    ports: "{{ ports }}"
+#    env_file: "{{ folder }}/env_file.env"
+#    volumes:
+#      - "{{ folder }}/env_file.env:{{ folder }}/env_file.env"
+
+- name: Start docker application containers
+  shell: docker run -d -m256M --cpus 2 -it --rm -p {{ ports }} {{ image_name }}
