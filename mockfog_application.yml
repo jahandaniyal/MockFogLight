@@ -1,26 +1,26 @@
 ---
 # Playbook to control the mockfog_application role
 
-- name: Rollout ping application
-  hosts: broker_nodes # based on defined role
+- name: Rollout generator
+  hosts: generator_nodes # based on defined role
   remote_user: ec2-user
   become: yes
   vars:
     container_name: generators
-    image_name: jahandaniyal/mockfogload_generators
+    image_name: mockfogoverload/generators:mvp
     expose: 8081
     ports: 8081:8080
   roles:
     - mockfog_application
 
-- name: Rollout ping application
-  hosts: client_nodes
+- name: Rollout test application
+  hosts: application_nodes
   remote_user: ec2-user
   become: yes
   vars:
     container_name: application
-    image_name: jahandaniyal/mockfogload_generators
-    expose: 8081
-    ports: 8081:8080
+    image_name: mockfogoverload/exampleapp:mvp
+    expose: 4568
+    ports: 4568:4567
   roles:
     - mockfog_application

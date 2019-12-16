@@ -3,12 +3,12 @@ Nodes:
     role:
 
   - name: cloud1_generators
-    role: broker
+    role: generator
     connect_to: cloud1_application
     timeout: 10
 
   - name: cloud1_application
-    role: client
+    role: application
     connect_to: cloud1_generators
     timeout: 10
 
