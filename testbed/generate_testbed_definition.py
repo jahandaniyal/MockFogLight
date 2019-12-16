@@ -6,15 +6,17 @@ import networkx as nx
 import yaml
 from matplotlib import pyplot as plt
 
+import generate_topologies
 import topologies
+
 from common import validate_graph, fill_node_attrs, resolve_names
 
 g = nx.Graph()
 
 # Generate topology
 
-topologies.simple_topology(g)
-
+#topologies.simple_topology(g)
+generate_topologies.topology(g)
 # Process graph
 
 validate_graph(g)

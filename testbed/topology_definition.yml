@@ -1,0 +1,22 @@
+Nodes:
+  - name: cloud1
+    role:
+
+  - name: cloud1_generators
+    role: broker
+    connect_to: cloud1_application
+    timeout: 10
+
+  - name: cloud1_application
+    role: client
+    connect_to: cloud1_generators
+    timeout: 10
+
+Edges:
+  - u_of_edge: cloud1_generators
+    v_of_edge: cloud1
+    delay: 2
+
+  - u_of_edge: cloud1_application
+    v_of_edge: cloud1
+    delay: 2
