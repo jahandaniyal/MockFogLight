@@ -15,5 +15,6 @@ mockfog.pem
 # Stuff
 **/__pycache__
 .DS_Store
+docs/build
 logs/
 mockfog_topology/vars/main.yml
