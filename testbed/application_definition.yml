@@ -1,0 +1,16 @@
+---
+cloud1_broker1:
+  connect_to: cloud1_client1
+  timeout: 10
+  app_def: application
+  internal_ip: 10.0.2.142
+cloud1_client1:
+  connect_to: cloud1_client2
+  timeout: 10
+  app_def: generators
+  internal_ip: 10.0.2.137
+cloud1_client2:
+  connect_to: cloud1_client1
+  timeout: 10
+  app_def: generators
+  internal_ip: 10.0.2.142
