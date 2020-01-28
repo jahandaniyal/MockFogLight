@@ -11,7 +11,7 @@ class WebServerHandler(BaseHTTPRequestHandler):
         content_type = self.headers['Content-Type']
 
         if content_type != 'application/json':
-            print("Wront content type,json expected!")
+            print("Wrong content type,json expected!")
             return
 
         body = self.rfile.read(content_length)
@@ -22,22 +22,49 @@ class WebServerHandler(BaseHTTPRequestHandler):
 
         content_string = body.decode('utf-8')
         content_json_array = json.loads(content_string)
-        content_dict = {}
 
-        try:
-            content_dict['timestamp'] = content_json_array[0]['timestamp']
-            content_dict['name'] = content_json_array[0]['data']['name']
-            content_dict['cpu'] = content_json_array[0]['data']['cpu']
-            content_dict['memory'] = content_json_array[0]['data']['memory']
-            content_dict['empty'] = content_json_array[0]['data']['empy']
-        except KeyError:
-            pass
+        if self.path == "/application":
+            content_dict = endpoint_application(content_json_array)
+            print(content_dict)
 
-        print(content_dict)
+        if self.path == "/interface":
+            content_dict = endpoint_interface(content_json_array)
+            print(content_dict)
 
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
+
+
+def endpoint_application(content_json_array):
+    content_dict = {}
+    try:
+        content_dict['timestamp'] = content_json_array[0]['timestamp']
+        content_dict['name'] = content_json_array[0]['data']['name']
+        content_dict['cpu'] = content_json_array[0]['data']['cpu']
+        content_dict['memory'] = content_json_array[0]['data']['memory']
+    except KeyError:
+        pass
+
+    return content_dict
+
+
+def endpoint_interface(content_json_array):
+    content_dict = {}
+    try:
+        content_dict['timestamp'] = content_json_array[0]['timestamp']
+        content_dict['id'] = content_json_array[0]['data']['id']
+        content_dict['active'] = content_json_array[0]['data']['active']
+        content_dict['bandwidth'] = content_json_array[0]['data']['bandwidth']
+    except KeyError:
+        pass
+
+    return content_dict
+
+
+# def schedule_application(content_dict):
+#     agent.Docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
+#     agent.docker.update_memory_limit(content_dict['name'], content_dict['memory'])
 
 
 def main():
