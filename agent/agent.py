@@ -1,3 +1,6 @@
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from io import BytesIO
+import json
 import docker
 import subprocess
 
@@ -161,6 +164,84 @@ class Tc(object):
     # TODO: We could limit traffic on ip and port granularity
 
 
+class WebServerHandler(BaseHTTPRequestHandler):
+
+    def do_POST(self):
+        self.send_response(200)
+        content_length = int(self.headers['Content-Length'])
+        content_type = self.headers['Content-Type']
+
+        if content_type != 'application/json':
+            print("Wrong content type,json expected!")
+            return
+
+        body = self.rfile.read(content_length)
+        response = BytesIO()
+        response.write(b'Received: ' + body + b'\n')
+        self.end_headers()
+        self.wfile.write(response.getvalue())
+
+        content_string = body.decode('utf-8')
+        content_json_array = json.loads(content_string)
+
+        if self.path == "/application":
+            content_dict = endpoint_application(content_json_array)
+            print(content_dict)
+            schedule_application(content_dict)
+
+        if self.path == "/interface":
+            content_dict = endpoint_interface(content_json_array)
+            print(content_dict)
+            schedule_interface(content_dict)
+
+
+def endpoint_application(content_json_array):
+    content_dict = {}
+    try:
+        content_dict['timestamp'] = content_json_array[0]['timestamp']
+        content_dict['name'] = content_json_array[0]['data']['name']
+        content_dict['cpu'] = content_json_array[0]['data']['cpu']
+        content_dict['memory'] = content_json_array[0]['data']['memory']
+        content_dict['active'] = content_json_array[0]['data']['active']
+    except KeyError:
+        pass
+
+    return content_dict
+
+
+def endpoint_interface(content_json_array):
+    content_dict = {}
+    try:
+        content_dict['timestamp'] = content_json_array[0]['timestamp']
+        content_dict['id'] = content_json_array[0]['data']['id']
+        content_dict['active'] = content_json_array[0]['data']['active']
+        content_dict['bandwidth'] = content_json_array[0]['data']['bandwidth']
+    except KeyError:
+        pass
+
+    return content_dict
+
+
+def schedule_application(content_dict):
+    my_docker = Docker()
+
+    if 'cpu' in content_dict:
+        my_docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
+        print("New cpu limit has been setup")
+
+    if 'memory' in content_dict:
+        my_docker.update_cpu_shares(content_dict['name'], content_dict['memory'])
+        print("New memory has been setup")
+
+
+def schedule_interface(content_dict):
+    my_tc = Tc()
+
+    if 'bandwidth' in content_dict:
+        my_tc.bandwidth(content_dict['id'], content_dict['bandwidth'])
+        print("New bandwidth setup")
+
+
 class Agent(object):
 
     def __init__(self, name='agent'):
@@ -170,12 +251,21 @@ class Agent(object):
 
 
 def main():
-    agent = Agent()
-    agent.docker.run("angryeinstein/backend", "backend")
-    agent.tc.latency("10s")
-    agent.tc.bandwidth("10Mbps")
-    agent.tc.show_tc_rules()
-    agent.tc.reset_default_interface()
+    try:
+        agent = Agent()
+        agent.docker.run("angryeinstein/backend", "backend")
+        agent.tc.latency("10s")
+        agent.tc.bandwidth("10Mbps")
+        print("Agent is setup")
+
+        port = 8080
+        server = HTTPServer(('', port), WebServerHandler)
+        print("Web server is running on port {}".format(port))
+        server.serve_forever()
+
+    except KeyboardInterrupt:
+        print(" ^C entered, stopping web server....")
+        server.socket.close()
 
 
 if __name__ == '__main__':
