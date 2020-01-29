@@ -1,9 +1,11 @@
 import docker
 import subprocess
 import logging
+import docker.errors
 
 
 # TODO: add exception handling and logging
+# TODO: add status report generation
 class Docker(object):
     __docker_client = docker.from_env()
 
@@ -22,8 +24,13 @@ class Docker(object):
         :param mem_limit:
         :return:
         """
-        container = self.__docker_client.containers.get(container_name)
-        container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
+        try:
+            container = self.__docker_client.containers.get(container_name)
+            container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
+        except docker.errors.NotFound:
+            logging.warning(container_name + ": not found on this host")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to update " + container_name, err)
 
     def update_cpu_shares(self, container_name, cpu_shares):
         """
@@ -31,18 +38,23 @@ class Docker(object):
 
         :param container_name:
         :param cpu_shares:
-            Set this flag to a value greater or less than the default of 1024 to increase or reduce the container’s weight,
-            and give it access to a greater or lesser proportion of the host machine’s CPU cycles.
+            Set this flag to a value greater or less than the default of 1024 to increase or reduce the container’s
+            weight, and give it access to a greater or lesser proportion of the host machine’s CPU cycles.
             This is only enforced when CPU cycles are constrained.
             When plenty of CPU cycles are available, all containers use as much CPU as they need.
-            In that way, this is a soft limit. --cpu-shares does not prevent containers from being scheduled in swarm mode.
-            It prioritizes container CPU resources for the available CPU cycles.
+            In that way, this is a soft limit. --cpu-shares does not prevent containers from being scheduled in
+            swarm mode. It prioritizes container CPU resources for the available CPU cycles.
             It does not guarantee or reserve any specific CPU access.
             Specification from https://docs.docker.com/config/containers/resource_constraints/
         :return:
         """
-        container = self.__docker_client.containers.get(container_name)
-        container.update(cpu_shares=cpu_shares)
+        try:
+            container = self.__docker_client.containers.get(container_name)
+            container.update(cpu_shares=cpu_shares)
+        except docker.errors.NotFound:
+            logging.warning(container_name + ": not found on this host")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to update " + container_name, err)
 
     def connect(self, docker_network, container_name):
         """
@@ -51,8 +63,13 @@ class Docker(object):
         :param container_name:
         :return:
         """
-        network = self.__docker_client.networks.get(docker_network)
-        network.connect(container=container_name)
+        try:
+            network = self.__docker_client.networks.get(docker_network)
+            network.connect(container=container_name)
+        except docker.errors.NotFound:
+            logging.warning(docker_network + ": not found")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to connect " + container_name + " to " + docker_network, err)
 
     def disconnect(self, docker_network, container_name):
         """
@@ -61,8 +78,13 @@ class Docker(object):
         :param container_name:
         :return:
         """
-        network = self.__docker_client.networks.get(docker_network)
-        network.disconnect(container=container_name)
+        try:
+            network = self.__docker_client.networks.get(docker_network)
+            network.disconnect(container=container_name)
+        except docker.errors.NotFound:
+            logging.warning(docker_network + ": not found")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to disconnect " + container_name + " to " + docker_network, err)
 
     def networks(self):
         for network in self.__docker_client.networks.list():
@@ -106,13 +128,18 @@ class Tc(object):
         :return:
         """
         bandwidth = kwargs.pop('bandwidth', None)
-        delay = kwargs.pop('delay', "0ms")
-        loss = kwargs.pop('loss', "0")
+        delay = kwargs.pop('delay', None)
+        loss = kwargs.pop('loss', None)
 
         interface_args = ["tcset", interface]
         if bandwidth:
             interface_args.extend(["--rate", bandwidth])
-        interface_args.extend((["--delay", delay, "--loss", loss, "--overwrite"]))
+        if delay:
+            interface_args.extend(["--delay", delay])
+        if loss:
+            interface_args.extend(["--loss", loss])
+        # add overwrite flag to be able to update existing rules.
+        interface_args.append("--overwrite")
         try:
             subprocess.run(interface_args, check=True)
         except subprocess.CalledProcessError as err:
@@ -137,10 +164,12 @@ class Tc(object):
         try:
             subprocess.run(["tcdel", interface, "--all"], check=True)
         except subprocess.CalledProcessError:
+            # TODO: add explanation on why we pass the error here.
             pass
+
     def disable(self, interface):
         """
-        Disable interface requires root permission.
+        Disable interface. Requires root permission.
         :param interface:
         :return:
         """
@@ -151,7 +180,7 @@ class Tc(object):
 
     def enable(self, interface):
         """
-        Enable interface requires root permission.
+        Enable interface. Requires root permission.
 
         :param interface:
         :return:
@@ -162,7 +191,6 @@ class Tc(object):
             logging.warning("Insufficient permissions")
 
     # TODO: We could limit traffic on ip and port granularity
-    # TODO: Directional traffic shaping?
 
 
 class Agent(object):
@@ -183,6 +211,7 @@ def main():
     agent.tc.interface(interface, bandwidth="10Mbps", delay="1min", loss="0.9")
     agent.tc.show_rules(interface)
     agent.tc.disable(interface)
+
 
 if __name__ == '__main__':
     main()
