@@ -15,11 +15,13 @@ The topology file specifies characteristics of the EC2 instances to be deployed.
 
 
     Nodes:
-    - name: generator1
-      type: t2.nano
-      image: ubuntu18.04
+    - name: cloud1_generator1
+      type: t3.nano
+      image: ami-xxxxxxxxxxxxxxx
 
-    - name: application1
+    - name: cloud1_application
+    ...
+    ...
 
     Edges:
     - u_of_edge: generator1
@@ -33,23 +35,18 @@ Application Definition
 The application_definition file specifies different kinds of applications to be deployed. An example could look like this. ::
 
 
-    - name: generator
-      remote_user: ec2-user
-      become: yes
-      vars:
-        container_name: generators
-        image_name: mockfogoverload/generators:mvp
-        expose: 25252
-        ports: 25252:8080
+  application_definition:
+  - name: application
+    container_name: application
+    image_name: mockfogoverload/exampleapp:mvp
+    expose: 4568
+    ports: 4568:4567
 
-    - name: application
-      remote_user: ec2-user
-      become: yes
-      vars:
-        container_name: generators
-        image_name: mockfogoverload/application:mvp
-        expose: 25253
-        ports: 25253:8080
+  - name: generator
+    container_name: generators
+    image_name: mockfogoverload/generators:mvp
+    expose: 8081
+    ports: 8081:8080
 
 Application Configuration
 =========================
@@ -57,13 +54,38 @@ Application Configuration
 The application_configuration file allows users to create more fine grained application configurations in which he specifies which application definition is used and on which nodes the configuration should be deployed. An example could look like this. ::
 
 
-    - name: genConf1
-      applicaitonDefinition: generator
-      nodes: generator1
-      vars:
-        env:
-          - remote: $application1
+  application_config:
+  - name: genConf1
+    application_definition: generator
+    nodes: cloud1_generator1, cloud1_generator2
+    vars:
+      env:
+        - remote: null
 
-    - name: appConf1
-      applicaitonDefinition: application
-      nodes: application1
+  - name: appConf1
+    application_definition: application
+    nodes: cloud1_application
+    vars:
+      env:
+        - remote: null
+
+Application Playbook
+=========================
+
+The Application Playbook is used to deploy applications as defined in application_definition.yml and application_config.yml. ::
+
+
+  ---
+  # Playbook to control the mockfog_application role
+    - name: Rollout Applications
+      hosts: all_nodes # based on defined role
+      vars_files:
+        - "{{ playbook_dir }}/mockfog_application/vars/application_definition.yml"
+        - "{{ playbook_dir }}/mockfog_application/vars/application_config.yml"
+      remote_user: ec2-user
+      become: yes
+      vars:
+        _app_config: "{{(lookup('vars', 'application_config'))}}"
+        _app_def: "{{(lookup('vars', 'application_definition'))}}"
+      roles:
+        - mockfog_application
