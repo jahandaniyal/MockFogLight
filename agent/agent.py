@@ -4,13 +4,154 @@ import json
 import docker
 import subprocess
 
+class ContainerStatus:
+    def __init__(self, name):
+        self.name = name
+        self.memory_limit = "256"
+        self.cpu_shares = "1024"
+        self.connections = {}
+
+        self.bandwidth = ""
+        self.latency = "0.0ms"
+        self.packet_loss = "0"
+
+    def get_name(self):
+        return self.name
+
+    def get_memory_limit(self):
+        return self.memory_limit
+
+    def set_memory_limit(self, memory_limit):
+        self.memory_limit = memory_limit
+
+    def get_cpu_shares(self):
+        return self.cpu_shares
+
+    def set_cpu_shares(self, cpu_shares):
+        self.cpu_shares = cpu_shares
+
+    def get_bandwidth(self):
+        return self.bandwidth
+
+    def set_bandwidth(self, bandwidth):
+        self.bandwidth = bandwidth
+
+    def get_connection_status(self, connection_name):
+        if not (connection_name in self.connections):
+            self.connections[connection_name] = "disconnected"
+
+        return self.connections[connection_name]
+
+    def set_connection_status(self, connection_name, status):
+        self.connections[connection_name] = status
+
+    def get_latency(self):
+        return self.latency
+
+    def set_latency(self, latency):
+        self.latency = latency
+    
+    def get_packet_loss(self):
+        return self.packet_loss
+
+    def set_packet_loss(self, packet_loss):
+        self.packet_loss = packet_loss
+
+    def update_values(self):
+        """ The result of tcshow looks like the following """
+        """ {
+            "docker0": {
+                "outgoing": {
+                    "dst-network=192.168.0.10/32, dst-port=8080, protocol=ip": {
+                        "filter_id": "800::800",
+                        "delay": "10.0ms",
+                        "delay-distro": "2.0ms",
+                        "loss": "0.01%",
+                        "rate": "250Kbps"
+                    }
+                },
+                "incoming": {
+                    "protocol=ip": {
+                        "filter_id": "800::800",
+                        "delay": "1.0ms",
+                        "loss": "0.02%",
+                        "rate": "500Kbps"
+                    }
+                }
+            }
+        }"""
+
+        try:
+            result = subprocess.run(["tcshow", self.name], stdout=subprocess.PIPE)
+            data = json.loads(result.stdout)
+            for _, values in data[self.name]["outgoing"].items():
+                if "delay" in values:
+                    self.latency = values["delay"]
+                if "loss" in values:
+                    self.packet_loss = values["loss"]
+                if "rate" in values:
+                    self.bandwidth = values["rate"]
+        except:
+            print("'tcshow' failed, using saved values")
+
+    def to_json(self):
+        self.update_values()
+
+        connections_json = "{"
+        i = 0
+
+        for conn_name, conn_status in self.connections.items():
+            if i != 0:
+                connections_json += ','
+
+            connections_json += '"%s": "%s"' % (conn_name, conn_status)
+            i += 1
+
+        connections_json += "}"
+
+        return  """{
+        "memory_limit": "%s",
+        "cpu_shares": "%s",
+        "bandwidth": "%s",
+        "latency": "%s",
+        "packet_loss": "%s",
+        "connections": %s
+    }""" % (self.memory_limit, self.cpu_shares, self.bandwidth, self.latency, self.packet_loss, connections_json)
+
+class AgentStatus:
+    def __init__(self):
+        self.containers = {
+            'docker0': ContainerStatus('docker0')
+        }
+
+    def get_container(self, container_name):
+        if not (container_name in self.containers):
+            self.containers[container_name] = ContainerStatus(container_name)
+
+        return self.containers[container_name]
+
+    def to_json(self):
+        json = "{\n    "
+        i = 0
+
+        for name, container in self.containers.items():
+            if i != 0:
+                json += ',\n    '
+
+            json += '"%s": ' % (name)
+            json += container.to_json()
+            i += 1
+
+        json += "\n}"
+        return json
 
 # TODO: add exception handling
 class Docker(object):
     __docker_client = docker.from_env()
 
-    def __init__(self, name='docker'):
+    def __init__(self, status, name='docker'):
         self.name = name
+        self.status = status
 
     def run(self, container_image, container_name):
         self.__docker_client.containers.run(image=container_image, name=container_name, detach=True,
@@ -26,6 +167,8 @@ class Docker(object):
                     """
         container = self.__docker_client.containers.get(container_name)
         container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
+
+        self.status.get_container(container_name).set_memory_limit(mem_limit)
 
     def update_cpu_shares(self, container_name, cpu_shares):
         """
@@ -46,6 +189,8 @@ class Docker(object):
         container = self.__docker_client.containers.get(container_name)
         container.update(cpu_shares=cpu_shares)
 
+        self.status.get_container(container_name).set_cpu_shares(cpu_shares)
+
     def connect(self, docker_network, container_name):
         """
         Connect the container to specified network.
@@ -56,6 +201,9 @@ class Docker(object):
         network = self.__docker_client.networks.get(docker_network)
         network.connect(container=container_name)
 
+        self.status.get_container(container_name).set_connection_status(
+            docker_network, "connected")
+
     def disconnect(self, docker_network, container_name):
         """
         Disconnect the container from specified network.
@@ -65,6 +213,9 @@ class Docker(object):
         """
         network = self.__docker_client.networks.get(docker_network)
         network.disconnect(container=container_name)
+
+        self.status.get_container(container_name).set_connection_status(
+            docker_network, "disconnected")
 
     def networks(self):
         for network in self.__docker_client.networks.list():
@@ -78,8 +229,9 @@ class Docker(object):
 
 
 class Tc(object):
-    def __init__(self, name='tc'):
+    def __init__(self, status, name='tc'):
         self.name = name
+        self.status = status
 
     def bandwidth(self, bandwidth):
         """
@@ -89,6 +241,7 @@ class Tc(object):
         :return:
         """
         subprocess.run(["tcset", "docker0", "--rate", bandwidth])
+        self.status.get_container("docker0").set_bandwidth(bandwidth)
 
     def bandwidth(self, container_name, bandwidth):
         """
@@ -105,6 +258,7 @@ class Tc(object):
         :return:
         """
         subprocess.run(["tcset", container_name, "--docker", "--rate", bandwidth])
+        self.status.get_container(container_name).set_bandwidth(bandwidth)
 
     def latency(self, latency):
         """
@@ -122,6 +276,7 @@ class Tc(object):
                 :return:
                 """
         subprocess.run(["tcset", "docker0", "--delay", latency])
+        self.status.get_container("docker0").set_latency(latency)
 
     def latency(self, container_name, latency):
         """
@@ -140,6 +295,7 @@ class Tc(object):
         :return:
         """
         subprocess.run(["tcset", container_name, "--docker", "--delay", latency])
+        self.status.get_container(container_name).set_latency(latency)
 
     def show_tc_rules(self):
         print(subprocess.run(["tcshow", "docker0"]))
@@ -160,11 +316,14 @@ class Tc(object):
         :return:
         """
         subprocess.run(("tcset", container_name, "--docker", "--loss", packet_loss))
+        self.status.get_container(container_name).set_packet_loss(packet_loss)
 
     # TODO: We could limit traffic on ip and port granularity
 
 
 class WebServerHandler(BaseHTTPRequestHandler):
+    def __init__(self):
+        self.agent = Agent()
 
     def do_POST(self):
         self.send_response(200)
@@ -187,12 +346,12 @@ class WebServerHandler(BaseHTTPRequestHandler):
         if self.path == "/application":
             content_dict = endpoint_application(content_json_array)
             print(content_dict)
-            schedule_application(content_dict)
+            schedule_application(self.agent, content_dict)
 
         if self.path == "/interface":
             content_dict = endpoint_interface(content_json_array)
             print(content_dict)
-            schedule_interface(content_dict)
+            schedule_interface(self.agent, content_dict)
 
 
 def endpoint_application(content_json_array):
@@ -222,37 +381,35 @@ def endpoint_interface(content_json_array):
     return content_dict
 
 
-def schedule_application(content_dict):
-    my_docker = Docker()
-
+def schedule_application(agent, content_dict):
     if 'cpu' in content_dict:
-        my_docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
+        agent.docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
         print("New cpu limit has been setup")
 
     if 'memory' in content_dict:
-        my_docker.update_cpu_shares(content_dict['name'], content_dict['memory'])
+        agent.docker.update_cpu_shares(content_dict['name'], content_dict['memory'])
         print("New memory has been setup")
 
 
-def schedule_interface(content_dict):
-    my_tc = Tc()
-
+def schedule_interface(agent, content_dict):
     if 'bandwidth' in content_dict:
-        my_tc.bandwidth(content_dict['id'], content_dict['bandwidth'])
+        agent.tc.bandwidth(content_dict['id'], content_dict['bandwidth'])
         print("New bandwidth setup")
 
 
 class Agent(object):
 
     def __init__(self, name='agent'):
+        self.status = AgentStatus()
         self.name = name
-        self.docker = Docker()
-        self.tc = Tc()
+        self.docker = Docker(self.status)
+        self.tc = Tc(self.status)
 
 
 def main():
     try:
         agent = Agent()
+        print(agent.status.to_json())
         agent.docker.run("angryeinstein/backend", "backend")
         agent.tc.latency("10s")
         agent.tc.bandwidth("10Mbps")
