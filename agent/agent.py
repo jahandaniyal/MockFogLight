@@ -3,6 +3,8 @@ from io import BytesIO
 import json
 import docker
 import subprocess
+import sched, time
+
 
 class ContainerStatus:
     def __init__(self, name):
@@ -50,7 +52,7 @@ class ContainerStatus:
 
     def set_latency(self, latency):
         self.latency = latency
-    
+
     def get_packet_loss(self):
         return self.packet_loss
 
@@ -109,7 +111,7 @@ class ContainerStatus:
 
         connections_json += "}"
 
-        return  """{
+        return """{
         "memory_limit": "%s",
         "cpu_shares": "%s",
         "bandwidth": "%s",
@@ -117,6 +119,7 @@ class ContainerStatus:
         "packet_loss": "%s",
         "connections": %s
     }""" % (self.memory_limit, self.cpu_shares, self.bandwidth, self.latency, self.packet_loss, connections_json)
+
 
 class AgentStatus:
     def __init__(self):
@@ -144,6 +147,7 @@ class AgentStatus:
 
         json += "\n}"
         return json
+
 
 # TODO: add exception handling
 class Docker(object):
@@ -322,8 +326,6 @@ class Tc(object):
 
 
 class WebServerHandler(BaseHTTPRequestHandler):
-    def __init__(self):
-        self.agent = Agent()
 
     def do_POST(self):
         self.send_response(200)
@@ -343,15 +345,11 @@ class WebServerHandler(BaseHTTPRequestHandler):
         content_string = body.decode('utf-8')
         content_json_array = json.loads(content_string)
 
-        if self.path == "/application":
-            content_dict = endpoint_application(content_json_array)
-            print(content_dict)
-            schedule_application(self.agent, content_dict)
-
-        if self.path == "/interface":
-            content_dict = endpoint_interface(content_json_array)
-            print(content_dict)
-            schedule_interface(self.agent, content_dict)
+        agent = Agent()
+        # s = sched.scheduler(time.localtime(), time.sleep())
+        # s.enterabs(time.strptime(content_json_array[0]['timestamp']), 0,
+        #            scheduler(self.path, self.agent, content_json_array))
+        scheduler(self.path, agent, content_json_array)
 
 
 def endpoint_application(content_json_array):
@@ -381,13 +379,26 @@ def endpoint_interface(content_json_array):
     return content_dict
 
 
+def scheduler(path, agent, content_json_array):
+    if path == "/application":
+        content_dict = endpoint_application(content_json_array)
+        schedule_application(agent, content_dict)
+
+    if path == "/interface":
+        content_dict = endpoint_interface(content_json_array)
+        schedule_interface(agent, content_dict)
+
+    if path == "/reports/":
+        print(agent.status.to_json())
+
+
 def schedule_application(agent, content_dict):
     if 'cpu' in content_dict:
         agent.docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
         print("New cpu limit has been setup")
 
     if 'memory' in content_dict:
-        agent.docker.update_cpu_shares(content_dict['name'], content_dict['memory'])
+        agent.docker.update_memory_limit(content_dict['name'], content_dict['memory'])
         print("New memory has been setup")
 
 
@@ -408,13 +419,6 @@ class Agent(object):
 
 def main():
     try:
-        agent = Agent()
-        print(agent.status.to_json())
-        agent.docker.run("angryeinstein/backend", "backend")
-        agent.tc.latency("10s")
-        agent.tc.bandwidth("10Mbps")
-        print("Agent is setup")
-
         port = 8080
         server = HTTPServer(('', port), WebServerHandler)
         print("Web server is running on port {}".format(port))
