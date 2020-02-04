@@ -2,10 +2,11 @@ import json
 import sched
 import subprocess
 import time
-from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from io import BytesIO
 import docker
+import pprint
+
 
 
 class ContainerStatus:
@@ -327,6 +328,10 @@ class Tc(object):
     # TODO: We could limit traffic on ip and port granularity
 
 
+stage_report = {}
+counter = 0
+
+
 class WebServerHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
@@ -348,12 +353,16 @@ class WebServerHandler(BaseHTTPRequestHandler):
         content_json_array = json.loads(content_string)
 
         agent = Agent()
+
+        global counter
+        stage_report['stage' + str(counter)] = agent.status.to_json()
+        counter += 1
+
         s = sched.scheduler(time.localtime(), time.sleep)
         current_time = int(content_json_array[0]['timestamp']) / 1000.0
         print(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(current_time)))
         s.enterabs(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(current_time)), 0,
                    scheduler(self.path, agent, content_json_array))
-
 
 
 def endpoint_application(content_json_array):
@@ -393,7 +402,7 @@ def scheduler(path, agent, content_json_array):
         schedule_interface(agent, content_dict)
 
     if path == "/reports/":
-        print(agent.status.to_json())
+        pprint.pprint(stage_report)
 
 
 def schedule_application(agent, content_dict):
