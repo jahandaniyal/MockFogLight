@@ -1,9 +1,11 @@
+import json
+import sched
+import subprocess
+import time
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from io import BytesIO
-import json
 import docker
-import subprocess
-import sched, time
 
 
 class ContainerStatus:
@@ -346,10 +348,12 @@ class WebServerHandler(BaseHTTPRequestHandler):
         content_json_array = json.loads(content_string)
 
         agent = Agent()
-        # s = sched.scheduler(time.localtime(), time.sleep())
-        # s.enterabs(time.strptime(content_json_array[0]['timestamp']), 0,
-        #            scheduler(self.path, self.agent, content_json_array))
-        scheduler(self.path, agent, content_json_array)
+        s = sched.scheduler(time.localtime(), time.sleep)
+        current_time = int(content_json_array[0]['timestamp']) / 1000.0
+        print(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(current_time)))
+        s.enterabs(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(current_time)), 0,
+                   scheduler(self.path, agent, content_json_array))
+
 
 
 def endpoint_application(content_json_array):
@@ -419,6 +423,7 @@ class Agent(object):
 
 def main():
     try:
+
         port = 8080
         server = HTTPServer(('', port), WebServerHandler)
         print("Web server is running on port {}".format(port))
