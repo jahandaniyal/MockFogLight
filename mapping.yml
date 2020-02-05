@@ -1,0 +1,6 @@
+- ip: 18.197.152.97
+  name: cloud1_generator2
+- ip: 18.194.230.207
+  name: cloud1_application
+- ip: 18.185.120.188
+  name: cloud1_generator1

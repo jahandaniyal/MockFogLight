@@ -2,18 +2,27 @@ Nodes:
   - name: cloud1
     role:
 
-  - name: cloud1_generators
+  - name: cloud1_generator1
     role: generator
-    connect_to: cloud1_application
-    timeout: 10
+    image: ami-05da26ff253f6c5df
+    flavor: t3.nano
+
+  - name: cloud1_generator2
+    role: generator
+    image: ami-05da26ff253f6c5df
+    flavor: t3.nano
 
   - name: cloud1_application
     role: application
-    connect_to: cloud1_generators
-    timeout: 10
+    image: ami-05da26ff253f6c5df
+    flavor: t3.nano
 
 Edges:
-  - u_of_edge: cloud1_generators
+  - u_of_edge: cloud1_generator1
+    v_of_edge: cloud1
+    delay: 2
+
+  - u_of_edge: cloud1_generator2
     v_of_edge: cloud1
     delay: 2
 

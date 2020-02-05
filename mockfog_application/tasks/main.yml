@@ -5,3 +5,6 @@
 
 - import_tasks: collect.yml
   tags: collect
+
+- import_tasks: check_dependencies.yml
+  tags: check_dependencies

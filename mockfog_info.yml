@@ -32,7 +32,7 @@
 
     - name: Write to mapping.json
       become: false
-      local_action: shell echo '{"public_dns"{{":"}} "{{ ansible_ec2_public_hostname }}", "name"{{":"}} "{{ ec2_tags.tags.Name }}", "role"{{":"}} "{{ ec2_tags.tags.Role }}" },' >> mapping.json
+      local_action: shell echo '{"ip"{{":"}} "{{ ansible_ec2_public_ipv4 }}", "name"{{":"}} "{{ ec2_tags.tags.Name }}" },' >> mapping.json
       register: mapping
     - debug:
        msg: "{{ mapping }}"
@@ -44,3 +44,11 @@
     - name: Put everything list
       become: false
       shell: sed -i '1h;1!H;$!d;g;s/\(.*\),/\1/' mapping.json && echo "]" >> mapping.json
+
+- name: Dump to yaml
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Write to mapping.yml
+      script: JsonToYaml.py
+      ignore_errors: True

@@ -1,0 +1,5 @@
+[
+{"public_dns": "ec2-52-59-203-7.eu-central-1.compute.amazonaws.com", "name": "cloud1_client2", "role": "client" },
+{"public_dns": "ec2-18-197-115-29.eu-central-1.compute.amazonaws.com", "name": "cloud1_broker1", "role": "broker" },
+{"public_dns": "ec2-18-194-33-10.eu-central-1.compute.amazonaws.com", "name": "cloud1_client1", "role": "client" }
+]
