@@ -358,11 +358,16 @@ class Agent(object):
         self.tc = Tc(self.status)
 
 
-stage_report = {}
-counter = 0
 
 
 class WebServerHandler(BaseHTTPRequestHandler):
+    def __init__(self, request, client_address, server):
+        super().__init__(request, client_address, server)
+        self._scheduler = sched.scheduler()
+        self._agent = Agent()
+        self._stage_report = {}
+        self._stage_counter = 0
+        self._last_scheduled_timestamp = None
 
     def do_POST(self):
         self.send_response(200)
@@ -382,53 +387,53 @@ class WebServerHandler(BaseHTTPRequestHandler):
         content_string = body.decode('utf-8')
         content_json_array = json.loads(content_string)
 
-        agent = Agent()
+        self._stage_counter += 1
+        self._stage_report['stage' + str(self._stage_counter)] = self._agent.status.to_json()
 
-        global counter
-        stage_report['stage' + str(counter)] = agent.status.to_json()
-        counter += 1
+        for event in content_json_array:
+            scheduled_time = int(event['timestamp']) / 1000.0
+            self._scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, self._agent, event))
 
-        s = sched.scheduler(time.time, time.sleep)
-        current_time = int(content_json_array[0]['timestamp']) / 1000.0
-        s.enterabs(current_time, 0, lambda: scheduler(self.path, agent, content_json_array))
-        s.run()
+        self._scheduler.run()
+
 
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
 
         if self.path == "/reports":
-            pprint.pprint(stage_report)
+            pprint.pprint(self._stage_report)
 
 
-def endpoint_application(content_json_array):
+def endpoint_application(event):
     content_dict = {}
     try:
-        content_dict['timestamp'] = content_json_array[0]['timestamp']
-        content_dict['name'] = content_json_array[0]['data']['name']
-        content_dict['cpu'] = content_json_array[0]['data']['cpu']
-        content_dict['memory'] = content_json_array[0]['data']['memory']
-        content_dict['active'] = content_json_array[0]['data']['active']
+        content_dict['timestamp'] = event['timestamp']
+        content_dict['name'] = event['data']['name']
+        content_dict['cpu'] = event['data']['cpu']
+        content_dict['memory'] = event['data']['memory']
+        content_dict['active'] = event['data']['active']
     except KeyError:
         pass
 
     return content_dict
 
 
-def endpoint_interface(content_json_array):
+def endpoint_interface(event):
     content_dict = {}
     try:
-        content_dict['timestamp'] = content_json_array[0]['timestamp']
-        content_dict['id'] = content_json_array[0]['data']['id']
-        content_dict['active'] = content_json_array[0]['data']['active']
-        content_dict['bandwidth'] = content_json_array[0]['data']['bandwidth']
+        content_dict['timestamp'] = event['timestamp']
+        content_dict['id'] = event['data']['id']
+        content_dict['active'] = event['data']['active']
+        content_dict['bandwidth'] = event['data']['bandwidth']
     except KeyError:
         pass
 
     return content_dict
 
 
-def scheduler(path, agent, content_json_array):
+
+def do_action(path, agent, content_json_array):
     if path == "/application":
         content_dict = endpoint_application(content_json_array)
         schedule_application(agent, content_dict)
@@ -467,13 +472,13 @@ def schedule_interface(agent, content_dict):
 
 
 def main():
+
+
+    port = 20200
+    server = HTTPServer(('', port), WebServerHandler)
+    print("Web server is running on port {}".format(port))
     try:
-
-        port = 20200
-        server = HTTPServer(('', port), WebServerHandler)
-        print("Web server is running on port {}".format(port))
         server.serve_forever()
-
     except KeyboardInterrupt:
         print(" ^C entered, stopping web server....")
         server.socket.close()
