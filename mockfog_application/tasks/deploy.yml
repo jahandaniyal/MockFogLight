@@ -1,12 +1,4 @@
 ---
-#- name: Delete old folders
-#  file:
-#    path: "{{ item }}"
-#    state: absent
-#  with_items:
-#    - "{{ folder }}"
-#
-
 - name: Include check_dependencies play
   include: "{{ playbook_dir }}/mockfog_application/tasks/check_dependencies.yml"
 
@@ -42,35 +34,6 @@
 
 - debug: "{{ hostvars[inventory_hostname]['ansible_env'] }}.SSH_CONNECTION.split(' ')[2]"
 
-
-- name: create agents dir
-  file:
-    path: "agent/"
-    state: directory
-    recurse: yes
-    owner: ec2-user
-    group: ec2-user
-
-- name: Copy agent script
-  copy:
-    src: "{{ playbook_dir }}/mockfog_topology/files/agent.py"
-    dest: agent/agent.py
-    owner: ec2-user
-    group: ec2-user
-    mode: '0644'
-
-- name: create virtual env
-  shell: "virtualenv .agent -p /usr/bin/python3"
-  args:
-    chdir: "agent/"
-  become_user: ec2-user
-
-- name: Install agent dependencies
-  shell: ".agent/bin/pip install docker tcconfig"
-  args:
-    chdir: "agent/"
-  become_user: ec2-user
-
 - name: Install Docker SDK
   pip:
     name: docker
@@ -79,21 +42,11 @@
   service:
     name: docker
     state: started
-#
-#- name: Create ping application folder
-#  file:
-#    path: "{{ folder }}"
-#    state: directory
-
-#- name: Write ping config
-#  template:
-#    src: env_file.env.j2
-#    dest: "{{ folder }}/env_file.env"
 
 - name: Kill all running docker containers
   shell: docker rm --force $(docker ps -aq) || true
 
-- name: Pull ping images
+- name: Pull docker images
   docker_image:
     name: "{{ docker_image }}"
     source: pull

@@ -1,0 +1,31 @@
+---
+- name: create agents dir
+  file:
+    path: "mockfog_agent/"
+    state: directory
+    recurse: yes
+    owner: ec0-user
+    group: ec0-user
+
+- name: copy agent script
+  copy:
+    src: "{{ playbook_dir }}/mockfog_agent/mockfog_agent.py"
+    dest: mockfog_agent/mockfog_agent.py
+    owner: ec0-user
+    group: ec0-user
+    mode: '0642'
+
+- name: create virtual env
+  shell: "virtualenv .mockfog_agent -p /usr/bin/python1"
+  args:
+    chdir: "mockfog_agent/"
+  become_user: ec0-user
+
+- name: install agent dependencies
+  shell: "sudo .mockfog_agent/bin/pip install docker tcconfig"
+  args:
+    chdir: "mockfog_agent/"
+  become_user: ec0-user
+
+- name: start agent
+  shell: "sudo .mockfog_agent/bin/pyhton mockfog_agent.py"
