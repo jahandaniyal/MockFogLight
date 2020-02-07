@@ -357,8 +357,10 @@ class Agent(object):
         self.docker = Docker(self.status)
         self.tc = Tc(self.status)
 
+
 stage_report = {}
 counter = 0
+
 
 class WebServerHandler(BaseHTTPRequestHandler):
 
@@ -386,11 +388,17 @@ class WebServerHandler(BaseHTTPRequestHandler):
         stage_report['stage' + str(counter)] = agent.status.to_json()
         counter += 1
 
-        s = sched.scheduler(time.localtime(), time.sleep)
+        s = sched.scheduler(time.time, time.sleep)
         current_time = int(content_json_array[0]['timestamp']) / 1000.0
-        print(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(current_time)))
-        s.enterabs(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(current_time)), 0,
-                   scheduler(self.path, agent, content_json_array))
+        s.enterabs(current_time, 0, lambda: scheduler(self.path, agent, content_json_array))
+        s.run()
+
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+
+        if self.path == "/reports":
+            pprint.pprint(stage_report)
 
 
 def endpoint_application(content_json_array):
@@ -429,9 +437,6 @@ def scheduler(path, agent, content_json_array):
         content_dict = endpoint_interface(content_json_array)
         schedule_interface(agent, content_dict)
 
-    if path == "/reports/":
-        pprint.pprint(stage_report)
-
 
 def schedule_application(agent, content_dict):
     if 'cpu' in content_dict:
@@ -442,11 +447,23 @@ def schedule_application(agent, content_dict):
         agent.docker.update_memory_limit(content_dict['name'], content_dict['memory'])
         print("New memory has been setup")
 
+    # if 'active' in content_dict and content_dict['active'] == 'true':
+    #     agent.docker.connect(content_dict['name'])
+    #
+    # if 'active' in content_dict and content_dict['active'] == 'false':
+    #     agent.docker.disconnect(content_dict['name'])
+
 
 def schedule_interface(agent, content_dict):
     if 'bandwidth' in content_dict:
-        agent.tc.bandwidth(content_dict['id'], content_dict['bandwidth'])
+        agent.tc.interface(content_dict['id'], bandwidth=content_dict['bandwidth'])
         print("New bandwidth setup")
+
+    if 'active' in content_dict and content_dict['active'] == 'true':
+        agent.tc.enable(content_dict['id'])
+
+    if 'active' in content_dict and content_dict['active'] == 'false':
+        agent.tc.disable(content_dict['id'])
 
 
 def main():
