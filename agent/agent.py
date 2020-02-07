@@ -1,12 +1,13 @@
 import json
 import sched
-import subprocess
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from io import BytesIO
 import docker
+import subprocess
+import logging
+import docker.errors
 import pprint
-
 
 
 class ContainerStatus:
@@ -152,7 +153,6 @@ class AgentStatus:
         return json
 
 
-# TODO: add exception handling
 class Docker(object):
     __docker_client = docker.from_env()
 
@@ -167,36 +167,44 @@ class Docker(object):
 
     def update_memory_limit(self, container_name, mem_limit):
         """
-                    Update the memory limit by container name.
-                    :param container_name:
-                    :param mem_limit:
-                    :return:
-                    """
-        container = self.__docker_client.containers.get(container_name)
-        container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
-
-        self.status.get_container(container_name).set_memory_limit(mem_limit)
+        Update the memory limit by container name.
+        :param container_name:
+        :param mem_limit:
+        :return:
+        """
+        try:
+            container = self.__docker_client.containers.get(container_name)
+            container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
+            self.status.get_container(container_name).set_memory_limit(mem_limit)
+        except docker.errors.NotFound:
+            logging.warning(container_name + ": not found on this host")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to update " + container_name, err)
 
     def update_cpu_shares(self, container_name, cpu_shares):
         """
-                    Update the cpu shares by container name.
+        Update the cpu shares by container name.
 
-                    :param container_name:
-                    :param cpu_shares:
-                    Set this flag to a value greater or less than the default of 1024 to increase or reduce the container’s weight,
-                    and give it access to a greater or lesser proportion of the host machine’s CPU cycles.
-                    This is only enforced when CPU cycles are constrained.
-                    When plenty of CPU cycles are available, all containers use as much CPU as they need.
-                    In that way, this is a soft limit. --cpu-shares does not prevent containers from being scheduled in swarm mode.
-                    It prioritizes container CPU resources for the available CPU cycles.
-                    It does not guarantee or reserve any specific CPU access.
-                    Specification from https://docs.docker.com/config/containers/resource_constraints/
-                    :return:
-                    """
-        container = self.__docker_client.containers.get(container_name)
-        container.update(cpu_shares=cpu_shares)
-
-        self.status.get_container(container_name).set_cpu_shares(cpu_shares)
+        :param container_name:
+        :param cpu_shares:
+            Set this flag to a value greater or less than the default of 1024 to increase or reduce the container’s
+            weight, and give it access to a greater or lesser proportion of the host machine’s CPU cycles.
+            This is only enforced when CPU cycles are constrained.
+            When plenty of CPU cycles are available, all containers use as much CPU as they need.
+            In that way, this is a soft limit. --cpu-shares does not prevent containers from being scheduled in
+            swarm mode. It prioritizes container CPU resources for the available CPU cycles.
+            It does not guarantee or reserve any specific CPU access.
+            Specification from https://docs.docker.com/config/containers/resource_constraints/
+        :return:
+        """
+        try:
+            container = self.__docker_client.containers.get(container_name)
+            container.update(cpu_shares=cpu_shares)
+            self.status.get_container(container_name).set_cpu_shares(cpu_shares)
+        except docker.errors.NotFound:
+            logging.warning(container_name + ": not found on this host")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to update " + container_name, err)
 
     def connect(self, docker_network, container_name):
         """
@@ -205,11 +213,15 @@ class Docker(object):
         :param container_name:
         :return:
         """
-        network = self.__docker_client.networks.get(docker_network)
-        network.connect(container=container_name)
-
-        self.status.get_container(container_name).set_connection_status(
-            docker_network, "connected")
+        try:
+            network = self.__docker_client.networks.get(docker_network)
+            network.connect(container=container_name)
+        except docker.errors.NotFound:
+            logging.warning(docker_network + ": not found")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to connect " + container_name + " to " + docker_network, err)
+        finally:
+            self.status.get_container(container_name).set_connection_status(docker_network, "connected")
 
     def disconnect(self, docker_network, container_name):
         """
@@ -218,11 +230,15 @@ class Docker(object):
         :param container_name:
         :return:
         """
-        network = self.__docker_client.networks.get(docker_network)
-        network.disconnect(container=container_name)
-
-        self.status.get_container(container_name).set_connection_status(
-            docker_network, "disconnected")
+        try:
+            network = self.__docker_client.networks.get(docker_network)
+            network.disconnect(container=container_name)
+        except docker.errors.NotFound:
+            logging.warning(docker_network + ": not found")
+        except docker.errors.APIError as err:
+            logging.warning("Failed to disconnect " + container_name + " to " + docker_network, err)
+        finally:
+            self.status.get_container(container_name).set_connection_status(docker_network, "disconnected")
 
     def networks(self):
         for network in self.__docker_client.networks.list():
@@ -240,97 +256,109 @@ class Tc(object):
         self.name = name
         self.status = status
 
-    def bandwidth(self, bandwidth):
+    def interface(self, interface, **kwargs):
+        """
+        Add interface configuration.
+        :param interface:
+        :param kwargs:
+
+        Args:
+            bandwidth (str): network bandwidth rate [bit per second]. the minimum
+                bandwidth rate is 8 bps. valid units are either: bps,
+                bit/s, [kK]bps, [kK]bit/s, [kK]ibps, [kK]ibit/s,
+                [mM]bps, [mM]bit/s, [mM]ibps, [mM]ibit/s, [gG]bps,
+                [gG]bit/s, [gG]ibps, [gG]ibit/s, [tT]bps, [tT]bit/s,
+                [tT]ibps, [tT]ibit/s. e.g. tcset eth0 --rate 10Mbps
+            delay (str): round trip network delay. the valid range is from 0ms
+                to 60min. valid time units are: d/day/days,
+                h/hour/hours, m/min/mins/minute/minutes,
+                s/sec/secs/second/seconds,
+                ms/msec/msecs/millisecond/milliseconds,
+                us/usec/usecs/microsecond/microseconds. if no unit
+                string found, considered milliseconds as the time
+                unit. default "0ms"
+            loss (str): round trip packet loss rate [%]. the valid range is
+                from 0 to 100. default "0"
+
+        :return:
+        """
+        bandwidth = kwargs.pop('bandwidth', None)
+        delay = kwargs.pop('delay', None)
+        loss = kwargs.pop('loss', None)
+
+        interface_args = ["tcset", interface]
+        if bandwidth:
+            interface_args.extend(["--rate", bandwidth])
+            self.status.get_container("docker0").set_bandwidth(bandwidth)
+        if delay:
+            interface_args.extend(["--delay", delay])
+            self.status.get_container("docker0").set_latency(delay)
+        if loss:
+            interface_args.extend(["--loss", loss])
+            self.status.get_container("docker0").set_packet_loss(loss)
+        # add overwrite flag to be able to update existing rules.
+        interface_args.append("--overwrite")
+        try:
+            subprocess.run(interface_args, check=True)
+        except subprocess.CalledProcessError as err:
+            logging.error(err)
+
+    # TODO: There seems to be an issue with the "--change" flag. It overrides the whole rule instead of updating one
+    #  field.
+    def update_bandwidth(self, interface, bandwidth):
         """
         Configure the available bandwidth for the default docker0 interface.
 
+        :param interface:
         :param bandwidth:
         :return:
         """
-        subprocess.run(["tcset", "docker0", "--rate", bandwidth])
-        self.status.get_container("docker0").set_bandwidth(bandwidth)
+        subprocess.run(["tcset", interface, "--rate", bandwidth, "--change"], check=True)
 
-    def bandwidth(self, container_name, bandwidth):
+    def show_rules(self, interface):
+        print(subprocess.run(["tcshow", interface], check=True))
+
+    def reset_interface(self, interface):
+        try:
+            subprocess.run(["tcdel", interface, "--all"], check=True)
+        except subprocess.CalledProcessError:
+            # TODO: add explanation on why we pass the error here.
+            pass
+
+    def disable(self, interface):
         """
-        Configure the available bandwidth for the specified container.
-
-        :param container_name:
-        :param bandwidth:
-            network bandwidth rate [bit per second]. the minimum
-            bandwidth rate is 8 bps. valid units are either: bps,
-            bit/s, [kK]bps, [kK]bit/s, [kK]ibps, [kK]ibit/s,
-            [mM]bps, [mM]bit/s, [mM]ibps, [mM]ibit/s, [gG]bps,
-            [gG]bit/s, [gG]ibps, [gG]ibit/s, [tT]bps, [tT]bit/s,
-            [tT]ibps, [tT]ibit/s. e.g. tcset eth0 --rate 10Mbps
+        Disable interface. Requires root permission.
+        :param interface:
         :return:
         """
-        subprocess.run(["tcset", container_name, "--docker", "--rate", bandwidth])
-        self.status.get_container(container_name).set_bandwidth(bandwidth)
+        try:
+            subprocess.run(["ip", "link", "set", interface, "down"], check=True)
+        except subprocess.CalledProcessError:
+            logging.warning("Insufficient permissions")
 
-    def latency(self, latency):
+    def enable(self, interface):
         """
-                Configure the round tip network delay for the specified container.
+        Enable interface. Requires root permission.
 
-                :param latency:
-                    round trip network delay. the valid range is from 0ms
-                    to 60min. valid time units are: d/day/days,
-                    h/hour/hours, m/min/mins/minute/minutes,
-                    s/sec/secs/second/seconds,
-                    ms/msec/msecs/millisecond/milliseconds,
-                    us/usec/usecs/microsecond/microseconds. if no unit
-                    string found, considered milliseconds as the time
-                    unit.
-                :return:
-                """
-        subprocess.run(["tcset", "docker0", "--delay", latency])
-        self.status.get_container("docker0").set_latency(latency)
-
-    def latency(self, container_name, latency):
-        """
-        Configure the round tip network delay for the default docker0 interface.
-
-        :param container_name:
-        :param latency:
-            round trip network delay. the valid range is from 0ms
-            to 60min. valid time units are: d/day/days,
-            h/hour/hours, m/min/mins/minute/minutes,
-            s/sec/secs/second/seconds,
-            ms/msec/msecs/millisecond/milliseconds,
-            us/usec/usecs/microsecond/microseconds. if no unit
-            string found, considered milliseconds as the time
-            unit.
+        :param interface:
         :return:
         """
-        subprocess.run(["tcset", container_name, "--docker", "--delay", latency])
-        self.status.get_container(container_name).set_latency(latency)
+        try:
+            subprocess.run(["ip", "link", "set", interface, "up"], check=True)
+        except subprocess.CalledProcessError:
+            logging.warning("Insufficient permissions")
 
-    def show_tc_rules(self):
-        print(subprocess.run(["tcshow", "docker0"]))
 
-    def reset_default_interface(self):
-        subprocess.run(["tcdel", "docker0", "--all"])
+class Agent(object):
 
-    # TODO: kwargs?
-
-    def packet_loss(self, container_name, packet_loss):
-        """
-        Configure the packet loss rate for the specified container.
-
-        :param container_name:
-        :param packet_loss:
-            round trip packet loss rate [%]. the valid range is
-            from 0 to 100.
-        :return:
-        """
-        subprocess.run(("tcset", container_name, "--docker", "--loss", packet_loss))
-        self.status.get_container(container_name).set_packet_loss(packet_loss)
-
-    # TODO: We could limit traffic on ip and port granularity
-
+    def __init__(self, name='agent'):
+        self.status = AgentStatus()
+        self.name = name
+        self.docker = Docker(self.status)
+        self.tc = Tc(self.status)
 
 stage_report = {}
 counter = 0
-
 
 class WebServerHandler(BaseHTTPRequestHandler):
 
@@ -421,19 +449,10 @@ def schedule_interface(agent, content_dict):
         print("New bandwidth setup")
 
 
-class Agent(object):
-
-    def __init__(self, name='agent'):
-        self.status = AgentStatus()
-        self.name = name
-        self.docker = Docker(self.status)
-        self.tc = Tc(self.status)
-
-
 def main():
     try:
 
-        port = 8080
+        port = 20200
         server = HTTPServer(('', port), WebServerHandler)
         print("Web server is running on port {}".format(port))
         server.serve_forever()
