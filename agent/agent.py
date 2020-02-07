@@ -1,16 +1,164 @@
+import json
+import sched
+import time
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from io import BytesIO
 import docker
 import subprocess
 import logging
 import docker.errors
+import pprint
 
 
-# TODO: add exception handling and logging
-# TODO: add status report generation
+class ContainerStatus:
+    def __init__(self, name):
+        self.name = name
+        self.memory_limit = "256"
+        self.cpu_shares = "1024"
+        self.connections = {}
+
+        self.bandwidth = ""
+        self.latency = "0.0ms"
+        self.packet_loss = "0"
+
+    def get_name(self):
+        return self.name
+
+    def get_memory_limit(self):
+        return self.memory_limit
+
+    def set_memory_limit(self, memory_limit):
+        self.memory_limit = memory_limit
+
+    def get_cpu_shares(self):
+        return self.cpu_shares
+
+    def set_cpu_shares(self, cpu_shares):
+        self.cpu_shares = cpu_shares
+
+    def get_bandwidth(self):
+        return self.bandwidth
+
+    def set_bandwidth(self, bandwidth):
+        self.bandwidth = bandwidth
+
+    def get_connection_status(self, connection_name):
+        if not (connection_name in self.connections):
+            self.connections[connection_name] = "disconnected"
+
+        return self.connections[connection_name]
+
+    def set_connection_status(self, connection_name, status):
+        self.connections[connection_name] = status
+
+    def get_latency(self):
+        return self.latency
+
+    def set_latency(self, latency):
+        self.latency = latency
+
+    def get_packet_loss(self):
+        return self.packet_loss
+
+    def set_packet_loss(self, packet_loss):
+        self.packet_loss = packet_loss
+
+    def update_values(self):
+        """ The result of tcshow looks like the following """
+        """ {
+            "docker0": {
+                "outgoing": {
+                    "dst-network=192.168.0.10/32, dst-port=8080, protocol=ip": {
+                        "filter_id": "800::800",
+                        "delay": "10.0ms",
+                        "delay-distro": "2.0ms",
+                        "loss": "0.01%",
+                        "rate": "250Kbps"
+                    }
+                },
+                "incoming": {
+                    "protocol=ip": {
+                        "filter_id": "800::800",
+                        "delay": "1.0ms",
+                        "loss": "0.02%",
+                        "rate": "500Kbps"
+                    }
+                }
+            }
+        }"""
+
+        try:
+            result = subprocess.run(["tcshow", self.name], stdout=subprocess.PIPE)
+            data = json.loads(result.stdout)
+            for _, values in data[self.name]["outgoing"].items():
+                if "delay" in values:
+                    self.latency = values["delay"]
+                if "loss" in values:
+                    self.packet_loss = values["loss"]
+                if "rate" in values:
+                    self.bandwidth = values["rate"]
+        except:
+            print("'tcshow' failed, using saved values")
+
+    def to_json(self):
+        self.update_values()
+
+        connections_json = "{"
+        i = 0
+
+        for conn_name, conn_status in self.connections.items():
+            if i != 0:
+                connections_json += ','
+
+            connections_json += '"%s": "%s"' % (conn_name, conn_status)
+            i += 1
+
+        connections_json += "}"
+
+        return """{
+        "memory_limit": "%s",
+        "cpu_shares": "%s",
+        "bandwidth": "%s",
+        "latency": "%s",
+        "packet_loss": "%s",
+        "connections": %s
+    }""" % (self.memory_limit, self.cpu_shares, self.bandwidth, self.latency, self.packet_loss, connections_json)
+
+
+class AgentStatus:
+    def __init__(self):
+        self.containers = {
+            'docker0': ContainerStatus('docker0')
+        }
+
+    def get_container(self, container_name):
+        if not (container_name in self.containers):
+            self.containers[container_name] = ContainerStatus(container_name)
+
+        return self.containers[container_name]
+
+    def to_json(self):
+        json = "{\n    "
+        i = 0
+
+        for name, container in self.containers.items():
+            if i != 0:
+                json += ',\n    '
+
+            json += '"%s": ' % (name)
+            json += container.to_json()
+            i += 1
+
+        json += "\n}"
+        return json
+
+
 class Docker(object):
     __docker_client = docker.from_env()
 
-    def __init__(self, name='docker'):
+    def __init__(self, status, name='docker'):
         self.name = name
+        self.status = status
 
     def run(self, container_image, container_name):
         self.__docker_client.containers.run(image=container_image, name=container_name, detach=True,
@@ -27,6 +175,7 @@ class Docker(object):
         try:
             container = self.__docker_client.containers.get(container_name)
             container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
+            self.status.get_container(container_name).set_memory_limit(mem_limit)
         except docker.errors.NotFound:
             logging.warning(container_name + ": not found on this host")
         except docker.errors.APIError as err:
@@ -51,6 +200,7 @@ class Docker(object):
         try:
             container = self.__docker_client.containers.get(container_name)
             container.update(cpu_shares=cpu_shares)
+            self.status.get_container(container_name).set_cpu_shares(cpu_shares)
         except docker.errors.NotFound:
             logging.warning(container_name + ": not found on this host")
         except docker.errors.APIError as err:
@@ -66,6 +216,8 @@ class Docker(object):
         try:
             network = self.__docker_client.networks.get(docker_network)
             network.connect(container=container_name)
+            self.status.get_container(container_name).set_connection_status(
+                docker_network, "connected")
         except docker.errors.NotFound:
             logging.warning(docker_network + ": not found")
         except docker.errors.APIError as err:
@@ -81,10 +233,12 @@ class Docker(object):
         try:
             network = self.__docker_client.networks.get(docker_network)
             network.disconnect(container=container_name)
+            self.status.get_container(container_name).set_connection_status(
+                docker_network, "disconnected")
         except docker.errors.NotFound:
             logging.warning(docker_network + ": not found")
         except docker.errors.APIError as err:
-            logging.warning("Failed to disconnect " + container_name + " to " + docker_network, err)
+            logging.warning("Failed to disconnect " + container_name + " from " + docker_network, err)
 
     def networks(self):
         for network in self.__docker_client.networks.list():
@@ -98,8 +252,9 @@ class Docker(object):
 
 
 class Tc(object):
-    def __init__(self, name='tc'):
+    def __init__(self, status, name='tc'):
         self.name = name
+        self.status = status
 
     def interface(self, interface, **kwargs):
         """
@@ -134,10 +289,13 @@ class Tc(object):
         interface_args = ["tcset", interface]
         if bandwidth:
             interface_args.extend(["--rate", bandwidth])
+            self.status.get_container("docker0").set_bandwidth(bandwidth)
         if delay:
             interface_args.extend(["--delay", delay])
+            self.status.get_container("docker0").set_latency(delay)
         if loss:
             interface_args.extend(["--loss", loss])
+            self.status.get_container("docker0").set_packet_loss(loss)
         # add overwrite flag to be able to update existing rules.
         interface_args.append("--overwrite")
         try:
@@ -190,27 +348,135 @@ class Tc(object):
         except subprocess.CalledProcessError:
             logging.warning("Insufficient permissions")
 
-    # TODO: We could limit traffic on ip and port granularity
-
 
 class Agent(object):
 
     def __init__(self, name='agent'):
+        self.status = AgentStatus()
         self.name = name
-        self.docker = Docker()
-        self.tc = Tc()
+        self.docker = Docker(self.status)
+        self.tc = Tc(self.status)
+
+
+stage_report = {}
+counter = 0
+
+
+class WebServerHandler(BaseHTTPRequestHandler):
+
+    def do_POST(self):
+        self.send_response(200)
+        content_length = int(self.headers['Content-Length'])
+        content_type = self.headers['Content-Type']
+
+        if content_type != 'application/json':
+            print("Wrong content type,json expected!")
+            return
+
+        body = self.rfile.read(content_length)
+        response = BytesIO()
+        response.write(b'Received: ' + body + b'\n')
+        self.end_headers()
+        self.wfile.write(response.getvalue())
+
+        content_string = body.decode('utf-8')
+        content_json_array = json.loads(content_string)
+
+        agent = Agent()
+
+        global counter
+        stage_report['stage' + str(counter)] = agent.status.to_json()
+        counter += 1
+
+        s = sched.scheduler(time.time, time.sleep)
+        current_time = int(content_json_array[0]['timestamp']) / 1000.0
+        s.enterabs(current_time, 0, lambda: scheduler(self.path, agent, content_json_array))
+        s.run()
+
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+
+        if self.path == "/reports":
+            pprint.pprint(stage_report)
+
+
+def endpoint_application(content_json_array):
+    content_dict = {}
+    try:
+        content_dict['timestamp'] = content_json_array[0]['timestamp']
+        content_dict['name'] = content_json_array[0]['data']['name']
+        content_dict['cpu'] = content_json_array[0]['data']['cpu']
+        content_dict['memory'] = content_json_array[0]['data']['memory']
+        content_dict['active'] = content_json_array[0]['data']['active']
+    except KeyError:
+        pass
+
+    return content_dict
+
+
+def endpoint_interface(content_json_array):
+    content_dict = {}
+    try:
+        content_dict['timestamp'] = content_json_array[0]['timestamp']
+        content_dict['id'] = content_json_array[0]['data']['id']
+        content_dict['active'] = content_json_array[0]['data']['active']
+        content_dict['bandwidth'] = content_json_array[0]['data']['bandwidth']
+    except KeyError:
+        pass
+
+    return content_dict
+
+
+def scheduler(path, agent, content_json_array):
+    if path == "/application":
+        content_dict = endpoint_application(content_json_array)
+        schedule_application(agent, content_dict)
+
+    if path == "/interface":
+        content_dict = endpoint_interface(content_json_array)
+        schedule_interface(agent, content_dict)
+
+
+def schedule_application(agent, content_dict):
+    if 'cpu' in content_dict:
+        agent.docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
+        print("New cpu limit has been setup")
+
+    if 'memory' in content_dict:
+        agent.docker.update_memory_limit(content_dict['name'], content_dict['memory'])
+        print("New memory has been setup")
+
+    # if 'active' in content_dict and content_dict['active'] == 'true':
+    #     agent.docker.connect(content_dict['name'])
+    #
+    # if 'active' in content_dict and content_dict['active'] == 'false':
+    #     agent.docker.disconnect(content_dict['name'])
+
+
+def schedule_interface(agent, content_dict):
+    if 'bandwidth' in content_dict:
+        agent.tc.interface(content_dict['id'], bandwidth=content_dict['bandwidth'])
+        print("New bandwidth setup")
+
+    if 'active' in content_dict and content_dict['active'] == 'true':
+        agent.tc.enable(content_dict['id'])
+
+    if 'active' in content_dict and content_dict['active'] == 'false':
+        agent.tc.disable(content_dict['id'])
 
 
 def main():
-    agent = Agent()
-    interface = "docker0"
-    agent.tc.interface(interface, bandwidth="10Mbps", delay="10ms", loss="0.1")
-    agent.tc.show_rules(interface)
-    agent.tc.reset_interface(interface)
-    agent.tc.show_rules(interface)
-    agent.tc.interface(interface, bandwidth="10Mbps", delay="1min", loss="0.9")
-    agent.tc.show_rules(interface)
-    agent.tc.disable(interface)
+    try:
+
+        port = 20200
+        server = HTTPServer(('', port), WebServerHandler)
+        print("Web server is running on port {}".format(port))
+        server.serve_forever()
+
+    except KeyboardInterrupt:
+        print(" ^C entered, stopping web server....")
+        server.socket.close()
 
 
 if __name__ == '__main__':
