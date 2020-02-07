@@ -216,12 +216,12 @@ class Docker(object):
         try:
             network = self.__docker_client.networks.get(docker_network)
             network.connect(container=container_name)
+            self.status.get_container(container_name).set_connection_status(
+                docker_network, "connected")
         except docker.errors.NotFound:
             logging.warning(docker_network + ": not found")
         except docker.errors.APIError as err:
             logging.warning("Failed to connect " + container_name + " to " + docker_network, err)
-        finally:
-            self.status.get_container(container_name).set_connection_status(docker_network, "connected")
 
     def disconnect(self, docker_network, container_name):
         """
@@ -233,12 +233,12 @@ class Docker(object):
         try:
             network = self.__docker_client.networks.get(docker_network)
             network.disconnect(container=container_name)
+            self.status.get_container(container_name).set_connection_status(
+                docker_network, "disconnected")
         except docker.errors.NotFound:
             logging.warning(docker_network + ": not found")
         except docker.errors.APIError as err:
-            logging.warning("Failed to disconnect " + container_name + " to " + docker_network, err)
-        finally:
-            self.status.get_container(container_name).set_connection_status(docker_network, "disconnected")
+            logging.warning("Failed to disconnect " + container_name + " from " + docker_network, err)
 
     def networks(self):
         for network in self.__docker_client.networks.list():
