@@ -1,15 +1,14 @@
----
 # Mockfog Application Definition
 
 application_definition:
   - name: application
     container_name: application
-    docker_image: mockfogoverload/exampleapp:final
-    expose: 4568
-    ports: 4568:4567
+    docker_image: mockfogoverload/heartrate_example:final
+    expose: 30444
+    ports: 30444:30444
 
   - name: generator
     container_name: generators
-    docker_image: mockfogoverload/generators:mvp
-    expose: 8081
-    ports: 8081:8080
+    docker_image: mockfogoverload/generators:final
+    expose: 20201
+    ports: 20201:8080
