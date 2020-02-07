@@ -16,19 +16,22 @@ def simple_topology(g: Graph):
                                                       # this automatically adds an internal_ip field to the output with the respective node ip
                                                       connect_to='cloud1_client1',
                                                       # you can define in commons whether fields are mandatory
-                                                      timeout=10
+                                                      timeout=10,
+                                                      app_def='application'
                                                   )]))
     g.add_node('cloud1_client1', **node_attrs(role='client',
                                               app_configs=[
                                                   app_config(
                                                       connect_to='cloud1_client2',
-                                                      timeout=10
+                                                      timeout=10,
+                                                      app_def='generators'
                                                   )]))
     g.add_node('cloud1_client2', **node_attrs(role='client',
                                               app_configs=[
                                                   app_config(
                                                       connect_to='cloud1_client1',
-                                                      timeout=10
+                                                      timeout=10,
+                                                      app_def='generators'
                                                   )]))
 
 

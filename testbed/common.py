@@ -6,7 +6,7 @@ from networkx import Graph, NetworkXNoCycle, NetworkXNoPath
 
 # .1, .2, .3, .255 are reserved by AWS and we keep .4 through .10 as static options
 ip_address_pool = ['10.0.2.' + str(i) for i in range(11, 255)]
-
+app_configs = {}
 
 def generate_random_ip():
     if len(ip_address_pool) == 0:
@@ -45,7 +45,7 @@ def app_config(**kwargs):
     config = {
         **kwargs,
     }
-    assert 'timeout' in config
+    # assert 'timeout' in config
     return config
 
 
@@ -104,4 +104,11 @@ def resolve_names(g):
     for node, attrs in machine_nodes:
         for config in attrs['app_configs']:
             config['internal_ip'] = name_to_ip[config['connect_to']]
-        g.node[node]['app_configs'] = attrs['app_configs']
+            app_configs[node] = {}
+            app_configs[node].update(config)
+        # g.node[node]['app_configs'] = attrs['app_configs']
+        del g.node[node]['app_configs']
+    return app_configs
+
+def get_app_configurations():
+    return app_configs

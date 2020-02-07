@@ -1,0 +1,11 @@
+application:
+- container_name: application
+  image_name: mockfogoverload/exampleapp:mvp
+  expose: 4568
+  ports: 4568:4567
+
+generators:
+- container_name: generators
+  image_name: mockfogoverload/generators:mvp
+  expose: 8081
+  ports: 8081:8080
