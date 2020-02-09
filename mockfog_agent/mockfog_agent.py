@@ -383,17 +383,16 @@ class WebServerHandler(BaseHTTPRequestHandler):
         content_string = body.decode('utf-8')
         content_json_array = json.loads(content_string)
 
-        self._stage_counter += 1
-        self._stage_report['stage' + str(self._stage_counter)] = self._agent.status.to_json()
+        # self._stage_counter += 1
+        # self._stage_report['stage' + str(self._stage_counter)] = self._agent.status.to_json()
 
-        scheduler = sched.scheduler(time.time)
+        scheduler = sched.scheduler(time.time, time.sleep)
 
         for event in content_json_array:
             scheduled_time = int(event['timestamp']) / 1000.0
             scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, self._agent, event))
 
         threading.Thread(target=scheduler.run).start()
-
 
     def do_GET(self):
         self.send_response(200)
@@ -430,7 +429,6 @@ def endpoint_interface(event):
     return content_dict
 
 
-
 def do_action(path, agent, content_json_array):
     if path == "/application":
         content_dict = endpoint_application(content_json_array)
@@ -439,6 +437,7 @@ def do_action(path, agent, content_json_array):
     if path == "/interface":
         content_dict = endpoint_interface(content_json_array)
         schedule_interface(agent, content_dict)
+        print("Enters interface")
 
 
 def schedule_application(agent, content_dict):
@@ -450,12 +449,6 @@ def schedule_application(agent, content_dict):
         agent.docker.update_memory_limit(content_dict['name'], content_dict['memory'])
         print("New memory has been setup")
 
-    # if 'active' in content_dict and content_dict['active'] == 'true':
-    #     agent.docker.connect(content_dict['name'])
-    #
-    # if 'active' in content_dict and content_dict['active'] == 'false':
-    #     agent.docker.disconnect(content_dict['name'])
-
 
 def schedule_interface(agent, content_dict):
     if 'bandwidth' in content_dict:
@@ -464,14 +457,24 @@ def schedule_interface(agent, content_dict):
 
     if 'active' in content_dict and content_dict['active'] == 'true':
         agent.tc.enable(content_dict['id'])
+        print("Interface enabled")
 
     if 'active' in content_dict and content_dict['active'] == 'false':
         agent.tc.disable(content_dict['id'])
+        print("Interface disabled")
+
+    if 'delay' in content_dict:
+        agent.tc.interface(content_dict['id'], delay=content_dict['delay'])
+        print("New delay setup")
+
+    if 'loss' in content_dict:
+        agent.tc.interface(content_dict['id'], loss=content_dict['loss'])
+        print("New packet loss rate setup")
+
+    agent.tc.show_rules(content_dict['id'])
 
 
 def main():
-
-
     port = 20200
     server = HTTPServer(('', port), WebServerHandler)
     print("Web server is running on port {}".format(port))
