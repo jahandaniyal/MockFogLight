@@ -48,6 +48,8 @@
         ports:
           - 22
           - 20200
+          - 20201
+          - 30444
         cidr_ip: 0.0.0.0/0
         rule_desc: Allow inbound SSH
   register: public_security_group
