@@ -402,40 +402,13 @@ class WebServerHandler(BaseHTTPRequestHandler):
             pprint.pprint(self._stage_report)
 
 
-def endpoint_application(event):
-    content_dict = {}
-    try:
-        content_dict['timestamp'] = event['timestamp']
-        content_dict['name'] = event['data']['name']
-        content_dict['cpu'] = event['data']['cpu']
-        content_dict['memory'] = event['data']['memory']
-        content_dict['active'] = event['data']['active']
-    except KeyError:
-        pass
-
-    return content_dict
-
-
-def endpoint_interface(event):
-    content_dict = {}
-    try:
-        content_dict['timestamp'] = event['timestamp']
-        content_dict['id'] = event['data']['id']
-        content_dict['active'] = event['data']['active']
-        content_dict['bandwidth'] = event['data']['bandwidth']
-    except KeyError:
-        pass
-
-    return content_dict
-
-
 def do_action(path, agent, content_json_array):
+    content_dict = content_json_array['data']
+
     if path == "/application":
-        content_dict = endpoint_application(content_json_array)
         schedule_application(agent, content_dict)
 
     if path == "/interface":
-        content_dict = endpoint_interface(content_json_array)
         schedule_interface(agent, content_dict)
         print("Enters interface")
 
