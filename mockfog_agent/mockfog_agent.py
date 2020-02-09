@@ -359,7 +359,7 @@ class Agent(object):
 
 
 class WebServerHandler(BaseHTTPRequestHandler):
-    _scheduler = sched.scheduler()
+    _scheduler = sched.scheduler(time.time)
     _agent = Agent()
     _stage_report = {}
     _stage_counter = 0
@@ -391,7 +391,7 @@ class WebServerHandler(BaseHTTPRequestHandler):
             scheduled_time = int(event['timestamp']) / 1000.0
             self._scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, self._agent, event))
 
-        self._scheduler.run()
+        self._scheduler.run(blocking=False)
 
 
     def do_GET(self):
