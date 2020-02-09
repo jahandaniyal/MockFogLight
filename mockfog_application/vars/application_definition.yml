@@ -4,9 +4,9 @@
 application_definition:
   - name: application
     container_name: application
-    docker_image: mockfogoverload/heartrate_example:final
+    docker_image: mockfogoverload/exampleapp:mvp
     expose: 30444
-    ports: 30444:30444
+    ports: 30444:4567
 
   - name: generator
     container_name: generators
