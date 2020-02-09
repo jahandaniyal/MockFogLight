@@ -428,11 +428,11 @@ def schedule_interface(agent, content_dict):
         agent.tc.interface(content_dict['id'], bandwidth=content_dict['bandwidth'])
         print("New bandwidth setup")
 
-    if 'active' in content_dict and content_dict['active'] == 'true':
+    if 'status' in content_dict and content_dict['active'] == 'on':
         agent.tc.enable(content_dict['id'])
         print("Interface enabled")
 
-    if 'active' in content_dict and content_dict['active'] == 'false':
+    if 'status' in content_dict and content_dict['active'] == 'off':
         agent.tc.disable(content_dict['id'])
         print("Interface disabled")
 
