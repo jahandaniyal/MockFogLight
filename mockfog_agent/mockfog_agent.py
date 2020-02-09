@@ -1,3 +1,4 @@
+import threading
 import json
 import sched
 import time
@@ -359,12 +360,11 @@ class Agent(object):
 
 
 class WebServerHandler(BaseHTTPRequestHandler):
-    _scheduler = sched.scheduler()
+
     _agent = Agent()
     _stage_report = {}
     _stage_counter = 0
     _last_scheduled_timestamp = None
-
 
     def do_POST(self):
         self.send_response(200)
@@ -387,11 +387,13 @@ class WebServerHandler(BaseHTTPRequestHandler):
         self._stage_counter += 1
         self._stage_report['stage' + str(self._stage_counter)] = self._agent.status.to_json()
 
+        scheduler = sched.scheduler(time.time)
+
         for event in content_json_array:
             scheduled_time = int(event['timestamp']) / 1000.0
-            self._scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, self._agent, event))
+            scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, self._agent, event))
 
-        self._scheduler.run()
+        threading.Thread(target=scheduler.run).start()
 
 
     def do_GET(self):
