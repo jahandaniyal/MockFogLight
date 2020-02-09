@@ -360,7 +360,6 @@ class Agent(object):
 
 
 class WebServerHandler(BaseHTTPRequestHandler):
-
     _agent = Agent()
     _stage_report = {}
     _stage_counter = 0
