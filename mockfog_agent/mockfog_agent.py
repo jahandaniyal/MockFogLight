@@ -444,7 +444,7 @@ def schedule_interface(agent, content_dict):
         agent.tc.interface(content_dict['id'], loss=content_dict['loss'])
         print("New packet loss rate setup")
 
-    agent.tc.show_rules(content_dict['id'])
+    # agent.tc.show_rules(content_dict['id'])
 
 
 def main():
