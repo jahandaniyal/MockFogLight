@@ -365,8 +365,6 @@ class WebServerHandler(BaseHTTPRequestHandler):
     _stage_counter = 0
     _last_scheduled_timestamp = None
 
-    def __init__(self, request, client_address, server):
-        super().__init__(request, client_address, server)
 
     def do_POST(self):
         self.send_response(200)
