@@ -358,16 +358,15 @@ class Agent(object):
         self.tc = Tc(self.status)
 
 
-
-
 class WebServerHandler(BaseHTTPRequestHandler):
+    _scheduler = sched.scheduler()
+    _agent = Agent()
+    _stage_report = {}
+    _stage_counter = 0
+    _last_scheduled_timestamp = None
+
     def __init__(self, request, client_address, server):
         super().__init__(request, client_address, server)
-        self._scheduler = sched.scheduler()
-        self._agent = Agent()
-        self._stage_report = {}
-        self._stage_counter = 0
-        self._last_scheduled_timestamp = None
 
     def do_POST(self):
         self.send_response(200)
