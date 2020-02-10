@@ -10,3 +10,6 @@
 
 - import_tasks: check_dependencies.yml
   tags: check_dependencies
+
+- import_tasks: deploy_agent.yml
+  tags: deploy_agent
