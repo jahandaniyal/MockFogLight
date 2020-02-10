@@ -88,6 +88,16 @@
     mode: '0644'
   when: app_vars.volumes is defined and app_vars.volumes|length > 0
 
+- name: Check if app-specific env_file exists
+  stat: path="{{ inventory_hostname }}.env.j2"
+  register: env_file
+
+- name: Write application config
+  template:
+    src: "{{ inventory_hostname }}.env.j2"
+    dest: "{{ folder }}/env_file.env"
+  when: env_file.stat.exists
+
 - name: Start application containers which require volumes
   docker_container:
     name: "{{ container_name }}"
