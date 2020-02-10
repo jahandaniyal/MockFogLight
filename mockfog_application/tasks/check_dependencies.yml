@@ -44,26 +44,6 @@
   shell: sudo usermod -a -G docker ec2-user
   when: '"command not found" in docker_installed.stdout'
 
-- name: Get Application Config
-  set_fact:
-    app_config: "{{ item }}"
-    app_def: "{{ item.application_definition }}"
-    app_vars: "{{ item.vars }}"
-  with_items: "{{ _app_config }}"
-  when: '"{{ inventory_hostname }}" in item.nodes'
-
-- debug:
-    msg: "{{ app_vars }}"
-
-- name: Get Application Definition Vars
-  set_fact:
-    container_name: "{{ item.container_name }}"
-    docker_image: "{{ item.docker_image }}"
-    expose: "{{ item.expose }}"
-    ports: "{{ item.ports }}"
-  with_items: "{{ _app_def }}"
-  when: item.name == "{{ app_def }}"
-
 #- name: Install boto3
 #  shell: sudo pip3 install boto3
 
