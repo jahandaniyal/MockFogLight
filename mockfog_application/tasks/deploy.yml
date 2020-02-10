@@ -23,7 +23,17 @@
     source: pull
     force_source: yes
 
-- name: Start application containers
+- name: Check if app-specific env_file exists
+  stat: path="{{ inventory_hostname }}.env.j2"
+  register: env_file
+
+- name: Write application config
+  template:
+    src: "{{ inventory_hostname }}.env.j2"
+    dest: "{{ folder }}/env_file.env"
+  when: env_file.stat.exists
+
+- name: Start application containers which require volumes
   docker_container:
     name: "{{ container_name }}"
     image: "{{ docker_image }}"
@@ -34,8 +44,9 @@
     ports: "{{ ports }}"
 #    env_file: "{{ folder }}/env_file.env"
     volumes:
-      - "{{ env_vars.volumes.container }}:{{ env_vars.volumes.host }}"
-  when: env_vars.volumes|length > 0
+#      - "{{ folder }}/env_file.env:{{ folder }}/env_file.env"
+      - "{{ env_vars.volumes.host }}:{{ env_vars.volumes.container }}"
+  when: env_vars.volumes is defined and env_vars.volumes|length > 0
   ignore_errors: true
 
 - name: Start application containers
@@ -47,7 +58,7 @@
     log_driver: journald
     exposed_ports: "{{ expose }}"
     ports: "{{ ports }}"
-  when: env_vars.volumes|length == 0
+  when: env_vars.volumes is undefined or env_vars.volumes|length == 0
   ignore_errors: true
 
 #- name: Start docker application containers
