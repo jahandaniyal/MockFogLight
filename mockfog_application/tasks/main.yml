@@ -1,7 +1,4 @@
 ---
-- import_tasks: install_agent.yml
-  tags: deploy
-
 - import_tasks: deploy.yml
   tags: deploy
 
@@ -10,3 +7,6 @@
 
 - import_tasks: check_dependencies.yml
   tags: check_dependencies
+
+- import_tasks: deploy_agent.yml
+  tags: deploy_agent

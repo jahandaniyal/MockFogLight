@@ -300,10 +300,10 @@ class Tc(object):
         # add overwrite flag to be able to update existing rules.
         interface_args.append("--overwrite")
         try:
-            subprocess.run(interface_args, check=True)
             # print the executed command arguments
             print(" ".join(interface_args))
             logging.debug(" ".join(interface_args))
+            subprocess.run(interface_args, check=True)
         except subprocess.CalledProcessError as err:
             logging.error(err)
 
