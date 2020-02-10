@@ -6,6 +6,71 @@
 #  with_items:
 #    - "{{ folder }}"
 #
+
+- name: Include check_dependencies play
+  include: "{{ playbook_dir }}/mockfog_application/tasks/check_dependencies.yml"
+
+- name: Get Application Config
+  set_fact:
+    app_config: "{{ item }}"
+    app_def: "{{ item.application_definition }}"
+    env_vars: "{{ item.vars.env }}"
+  with_items: "{{ _app_config }}"
+  when: '"{{ inventory_hostname }}" in item.nodes'
+
+- debug:
+    msg: "{{ env_vars }}"
+
+- name: Get Application Definition Vars
+  set_fact:
+    container_name: "{{ item.container_name }}"
+    docker_image: "{{ item.docker_image }}"
+    expose: "{{ item.expose }}"
+    ports: "{{ item.ports }}"
+  with_items: "{{ _app_def }}"
+  when: item.name == "{{ app_def }}"
+
+- name: Include check_variables play
+  include: "{{ playbook_dir }}/mockfog_application/tasks/check_variables.yml"
+
+#- debug:
+#    msg: "{{ docker_image }}"
+
+- name: Get current Host IP
+  set_fact:
+    host_ip: hostvars[inventory_hostname]['ansible_env'].SSH_CONNECTION.split(' ')[2]
+
+- debug: "{{ hostvars[inventory_hostname]['ansible_env'] }}.SSH_CONNECTION.split(' ')[2]"
+
+
+- name: create agents dir
+  file:
+    path: "agent/"
+    state: directory
+    recurse: yes
+    owner: ec2-user
+    group: ec2-user
+
+- name: Copy agent script
+  copy:
+    src: "{{ playbook_dir }}/mockfog_topology/files/agent.py"
+    dest: agent/agent.py
+    owner: ec2-user
+    group: ec2-user
+    mode: '0644'
+
+- name: create virtual env
+  shell: "virtualenv .agent -p /usr/bin/python3"
+  args:
+    chdir: "agent/"
+  become_user: ec2-user
+
+- name: Install agent dependencies
+  shell: ".agent/bin/pip install docker tcconfig"
+  args:
+    chdir: "agent/"
+  become_user: ec2-user
+
 - name: Install Docker SDK
   pip:
     name: docker
@@ -30,14 +95,14 @@
 
 - name: Pull ping images
   docker_image:
-    name: "{{ image_name }}"
+    name: "{{ docker_image }}"
     source: pull
     force_source: yes
 
-- name: Start ping application containers
+- name: Start application containers
   docker_container:
     name: "{{ container_name }}"
-    image: "{{ image_name }}"
+    image: "{{ docker_image }}"
     state: started
     auto_remove: yes
     log_driver: journald
@@ -47,5 +112,5 @@
 #    volumes:
 #      - "{{ folder }}/env_file.env:{{ folder }}/env_file.env"
 
-- name: Start docker application containers
-  shell: docker run -d -m256M --cpus 2 -it --rm -p {{ ports }} {{ image_name }}
+#- name: Start docker application containers
+#  shell: docker run -d -m256M --cpus 2 -it --rm -p {{ ports }} {{ docker_image }}

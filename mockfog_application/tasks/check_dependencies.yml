@@ -1,0 +1,60 @@
+---
+
+# Check if all dependencies are installed, if not then install them
+
+- name: Check if Python3 is installed
+  shell: "python3 --version 2>&1"
+  register: python_installed
+  ignore_errors: True
+
+- debug:
+    msg: "{{ python_installed }}"
+  when: '"command not found" in python_installed.stdout'
+
+- name: Install python3
+  shell: sudo yum -y install python37
+  when: '"command not found" in python_installed.stdout'
+
+- name: Check if iproute-tc is installed
+  shell: "tc -help 2>&1"
+  register: tc_installed
+  ignore_errors: True
+
+- name: Install iproute-tc
+  shell: sudo yum install -y iproute-tc
+  when: '"command not found" in tc_installed'
+
+- name: Install boto3, virtualenv
+  pip:
+    name: ['boto3', 'virtualenv']
+    state: present
+  ignore_errors: yes
+  sudo: yes
+
+- name: Check if Docker is installed
+  shell: "docker --version 2>&1"
+  register: docker_installed
+  ignore_errors: True
+
+- name: Install Docker
+  shell: sudo amazon-linux-extras install docker -y
+  when: '"command not found" in docker_installed.stdout'
+
+- name: Add ec2-user to docker group
+  shell: sudo usermod -a -G docker ec2-user
+  when: '"command not found" in docker_installed.stdout'
+
+#- name: Install boto3
+#  shell: sudo pip3 install boto3
+
+#- name: Install pip
+#  shell: sudo yum -y install python-pip
+#
+#- name: Install Docker
+#  shell: sudo amazon-linux-extras install docker -y
+#
+#- name: Add EMQX repo
+#  shell: sudo yum-config-manager --add-repo https://repos.emqx.io/emqx-ce/redhat/centos/7/emqx-ce.repo -y
+#
+#- name: Install EMQX
+#  shell: sudo yum install emqx -y
