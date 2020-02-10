@@ -32,6 +32,5 @@
     chdir: "agent/"
   become_user: ec2-user
 
-- name: Install Docker SDK
-  pip:
-    name: docker
+- name: start agent
+  shell: "sudo .mockfog_agent/bin/python mockfog_agent.py"

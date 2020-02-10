@@ -5,6 +5,10 @@
 - name: Include check_variables play
   include: "{{ playbook_dir }}/mockfog_application/tasks/check_variables.yml"
 
+- name: Install Docker SDK
+  pip:
+    name: docker
+
 - name: Start Docker service
   service:
     name: docker
