@@ -1,14 +1,16 @@
-import threading
 import json
+import logging
+import re
 import sched
+import subprocess
+import sys
+import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from io import BytesIO
+
 import docker
-import subprocess
-import logging
 import docker.errors
-import pprint
 
 
 class ContainerStatus:
@@ -368,7 +370,15 @@ class WebServerHandler(BaseHTTPRequestHandler):
     _stage_counter = 0
     _last_scheduled_timestamp = None
 
+    @staticmethod
+    def _update_report():
+        WebServerHandler._stage_counter += 1
+        WebServerHandler._stage_report[WebServerHandler._stage_counter] = WebServerHandler._agent.status.to_json()
+
     def do_POST(self):
+        if  len(WebServerHandler._stage_report) == 0:
+            print("Set stage 0 report")
+            WebServerHandler._stage_report[0] = WebServerHandler._agent.status.to_json()
         self.send_response(200)
         content_length = int(self.headers['Content-Length'])
         content_type = self.headers['Content-Type']
@@ -381,29 +391,32 @@ class WebServerHandler(BaseHTTPRequestHandler):
         response = BytesIO()
         response.write(b'Received: ' + body + b'\n')
         self.end_headers()
-        self.wfile.write(response.getvalue())
 
         content_string = body.decode('utf-8')
         content_json_array = json.loads(content_string)
 
-        self._stage_counter += 1
-        self._stage_report['stage' + str(self._stage_counter)] = self._agent.status.to_json()
-        print(self._stage_report)
-
         scheduler = sched.scheduler(time.time, time.sleep)
 
+        scheduled_time = None
         for event in content_json_array:
             scheduled_time = int(event['timestamp']) / 1000.0
-            scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, self._agent, event))
+            scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, WebServerHandler._agent, event))
+
+        assert scheduled_time is not None
+        scheduler.enterabs(scheduled_time + 1, 0, self._update_report)
 
         threading.Thread(target=scheduler.run).start()
 
     def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-
-        if self.path == "/reports":
-            pprint.pprint(self._stage_report)
+        match = re.match(r'/reports/(\d+)', self.path)
+        if match:
+            self.send_response(200)
+            self.end_headers()
+            stage = int(match.group(1))
+            self.wfile.write(WebServerHandler._stage_report[stage].encode())
+        else:
+            self.send_error(404)
+            self.end_headers()
 
 
 def do_action(path, agent, content_json_array):
