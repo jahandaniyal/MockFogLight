@@ -3,39 +3,42 @@ nodes:
 - type: machine
   flavor: t3.nano
   bandwidth_out: 10000
-  internal_ip: 10.0.2.159
-  role: broker
-  name: cloud1_broker1
+  internal_ip: 10.0.2.252
+  role: generator
+  image: ami-05da26ff253f6c5df
+  name: cloud1_generator1
   delay_paths:
-  - target: cloud1_client1
-    internal_ip: 10.0.2.142
-    value: 6
-  - target: cloud1_client2
-    internal_ip: 10.0.2.137
-    value: 6
-- type: machine
-  flavor: t3.nano
-  bandwidth_out: 10000
-  internal_ip: 10.0.2.142
-  role: client
-  name: cloud1_client1
-  delay_paths:
-  - target: cloud1_broker1
-    internal_ip: 10.0.2.159
-    value: 6
-  - target: cloud1_client2
-    internal_ip: 10.0.2.137
+  - target: cloud1_generator2
+    internal_ip: 10.0.2.51
+    value: 4
+  - target: cloud1_application
+    internal_ip: 10.0.2.64
     value: 4
 - type: machine
   flavor: t3.nano
   bandwidth_out: 10000
-  internal_ip: 10.0.2.137
-  role: client
-  name: cloud1_client2
+  internal_ip: 10.0.2.51
+  role: generator
+  image: ami-05da26ff253f6c5df
+  name: cloud1_generator2
   delay_paths:
-  - target: cloud1_broker1
-    internal_ip: 10.0.2.159
-    value: 6
-  - target: cloud1_client1
-    internal_ip: 10.0.2.142
+  - target: cloud1_generator1
+    internal_ip: 10.0.2.252
+    value: 4
+  - target: cloud1_application
+    internal_ip: 10.0.2.64
+    value: 4
+- type: machine
+  flavor: t3.nano
+  bandwidth_out: 10000
+  internal_ip: 10.0.2.64
+  role: application
+  image: ami-05da26ff253f6c5df
+  name: cloud1_application
+  delay_paths:
+  - target: cloud1_generator1
+    internal_ip: 10.0.2.252
+    value: 4
+  - target: cloud1_generator2
+    internal_ip: 10.0.2.51
     value: 4
