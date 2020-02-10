@@ -32,7 +32,7 @@
 
     - name: Write to mapping.json
       become: false
-      local_action: shell echo '{"ip"{{":"}} "{{ ansible_ec2_public_ipv4 }}", "name"{{":"}} "{{ ec2_tags.tags.Name }}" },' >> mapping.json
+      local_action: shell echo '{"ip"{{":"}} "{{ ansible_ec2_public_ipv4 }}", "id"{{":"}} "{{ ec2_tags.tags.Name }}" },' >> mapping.json
       register: mapping
     - debug:
        msg: "{{ mapping }}"
