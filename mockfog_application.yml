@@ -1,19 +1,15 @@
 ---
 # Playbook to control the mockfog_application role
 
-- name: Rollout generator
+- name: Rollout Applications
   hosts: all_nodes # based on defined role
   vars_files:
-    - "{{ playbook_dir }}/testbed/application_definition.yml"
+    - "{{ playbook_dir }}/mockfog_application/vars/application_definition.yml"
     - "{{ playbook_dir }}/mockfog_application/vars/application_config.yml"
   remote_user: ec2-user
   become: yes
   vars:
-    _app: "{{(lookup('vars', inventory_hostname)).app_def}}"
-    _app_def: "{{(lookup('vars', _app))}}"
-    container_name: "{{ _app_def[0].container_name }}"
-    image_name: "{{ _app_def[0].image_name }}"
-    expose: "{{ _app_def[0].expose }}"
-    ports: "{{ _app_def[0].ports }}"
+    _app_config: "{{(lookup('vars', 'application_config'))}}"
+    _app_def: "{{(lookup('vars', 'application_definition'))}}"
   roles:
     - mockfog_application
