@@ -154,11 +154,17 @@ class AgentStatus:
             if i != 0:
                 json += ',\n    '
 
+            json += '"%s": ' % ("")
+            json += ContainerStatus("").to_json_app()
+            i += 1
+
+            json += "\n\n    "
             json += '"%s": ' % (self.get_interface().interface)
             json += self.get_interface().to_json_interface()
             i += 1
             json += "\n}\n"
             return json
+
 
         for name, container in self.containers.items():
             if i != 0:
