@@ -406,9 +406,9 @@ class WebServerHandler(BaseHTTPRequestHandler):
         threading.Thread(target=scheduler.run).start()
 
     def do_GET(self):
-        match = re.match(r'/reports(\d+)', self.path)
+        match = re.match(r'/reports/(\d+)', self.path)
         if match:
-            stage = match.group(1)
+            stage = int(match.group(1))
             self.send_response(200)
             for s in (sys.stdout, self.wfile):
                 print(WebServerHandler._stage_report[stage], file=s)
