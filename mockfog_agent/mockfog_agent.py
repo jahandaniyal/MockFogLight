@@ -369,8 +369,8 @@ class WebServerHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _update_report():
-        WebServerHandler._stage_counter += 1
         WebServerHandler._stage_report[WebServerHandler._stage_counter] = WebServerHandler._agent.status.to_json()
+        WebServerHandler._stage_counter += 1
 
     def do_POST(self):
         self.send_response(200)
