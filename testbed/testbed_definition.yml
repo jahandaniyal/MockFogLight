@@ -3,182 +3,42 @@ nodes:
 - type: machine
   flavor: t3.nano
   bandwidth_out: 10000
-  internal_ip: 10.0.2.133
+  internal_ip: 10.0.2.252
   role: generator
   image: ami-05da26ff253f6c5df
-  name: generator1
+  name: cloud1_generator1
   delay_paths:
-  - target: generator2
-    internal_ip: 10.0.2.54
-    value: 0
-  - target: generator3
-    internal_ip: 10.0.2.141
-    value: 0
-  - target: generator4
-    internal_ip: 10.0.2.15
-    value: 0
-  - target: application_layer1_1
-    internal_ip: 10.0.2.147
-    value: 0
-  - target: application_layer1_2
-    internal_ip: 10.0.2.153
-    value: 0
-  - target: application_layer2
-    internal_ip: 10.0.2.239
-    value: 0
+  - target: cloud1_generator2
+    internal_ip: 10.0.2.51
+    value: 4
+  - target: cloud1_application
+    internal_ip: 10.0.2.64
+    value: 4
 - type: machine
   flavor: t3.nano
   bandwidth_out: 10000
-  internal_ip: 10.0.2.54
+  internal_ip: 10.0.2.51
   role: generator
   image: ami-05da26ff253f6c5df
-  name: generator2
+  name: cloud1_generator2
   delay_paths:
-  - target: generator1
-    internal_ip: 10.0.2.133
-    value: 0
-  - target: generator3
-    internal_ip: 10.0.2.141
-    value: 0
-  - target: generator4
-    internal_ip: 10.0.2.15
-    value: 0
-  - target: application_layer1_1
-    internal_ip: 10.0.2.147
-    value: 0
-  - target: application_layer1_2
-    internal_ip: 10.0.2.153
-    value: 0
-  - target: application_layer2
-    internal_ip: 10.0.2.239
-    value: 0
+  - target: cloud1_generator1
+    internal_ip: 10.0.2.252
+    value: 4
+  - target: cloud1_application
+    internal_ip: 10.0.2.64
+    value: 4
 - type: machine
   flavor: t3.nano
   bandwidth_out: 10000
-  internal_ip: 10.0.2.141
-  role: generator
+  internal_ip: 10.0.2.64
+  role: application
   image: ami-05da26ff253f6c5df
-  name: generator3
+  name: cloud1_application
   delay_paths:
-  - target: generator1
-    internal_ip: 10.0.2.133
-    value: 0
-  - target: generator2
-    internal_ip: 10.0.2.54
-    value: 0
-  - target: generator4
-    internal_ip: 10.0.2.15
-    value: 0
-  - target: application_layer1_1
-    internal_ip: 10.0.2.147
-    value: 0
-  - target: application_layer1_2
-    internal_ip: 10.0.2.153
-    value: 0
-  - target: application_layer2
-    internal_ip: 10.0.2.239
-    value: 0
-- type: machine
-  flavor: t3.nano
-  bandwidth_out: 10000
-  internal_ip: 10.0.2.15
-  role: generator
-  image: ami-05da26ff253f6c5df
-  name: generator4
-  delay_paths:
-  - target: generator1
-    internal_ip: 10.0.2.133
-    value: 0
-  - target: generator2
-    internal_ip: 10.0.2.54
-    value: 0
-  - target: generator3
-    internal_ip: 10.0.2.141
-    value: 0
-  - target: application_layer1_1
-    internal_ip: 10.0.2.147
-    value: 0
-  - target: application_layer1_2
-    internal_ip: 10.0.2.153
-    value: 0
-  - target: application_layer2
-    internal_ip: 10.0.2.239
-    value: 0
-- type: machine
-  flavor: t3.micro
-  bandwidth_out: 10000
-  internal_ip: 10.0.2.147
-  role: layer1
-  image: ami-05da26ff253f6c5df
-  name: application_layer1_1
-  delay_paths:
-  - target: generator1
-    internal_ip: 10.0.2.133
-    value: 0
-  - target: generator2
-    internal_ip: 10.0.2.54
-    value: 0
-  - target: generator3
-    internal_ip: 10.0.2.141
-    value: 0
-  - target: generator4
-    internal_ip: 10.0.2.15
-    value: 0
-  - target: application_layer1_2
-    internal_ip: 10.0.2.153
-    value: 0
-  - target: application_layer2
-    internal_ip: 10.0.2.239
-    value: 0
-- type: machine
-  flavor: t3.micro
-  bandwidth_out: 10000
-  internal_ip: 10.0.2.153
-  role: layer1
-  image: ami-05da26ff253f6c5df
-  name: application_layer1_2
-  delay_paths:
-  - target: generator1
-    internal_ip: 10.0.2.133
-    value: 0
-  - target: generator2
-    internal_ip: 10.0.2.54
-    value: 0
-  - target: generator3
-    internal_ip: 10.0.2.141
-    value: 0
-  - target: generator4
-    internal_ip: 10.0.2.15
-    value: 0
-  - target: application_layer1_1
-    internal_ip: 10.0.2.147
-    value: 0
-  - target: application_layer2
-    internal_ip: 10.0.2.239
-    value: 0
-- type: machine
-  flavor: t3.small
-  bandwidth_out: 10000
-  internal_ip: 10.0.2.239
-  role: layer2
-  image: ami-05da26ff253f6c5df
-  name: application_layer2
-  delay_paths:
-  - target: generator1
-    internal_ip: 10.0.2.133
-    value: 0
-  - target: generator2
-    internal_ip: 10.0.2.54
-    value: 0
-  - target: generator3
-    internal_ip: 10.0.2.141
-    value: 0
-  - target: generator4
-    internal_ip: 10.0.2.15
-    value: 0
-  - target: application_layer1_1
-    internal_ip: 10.0.2.147
-    value: 0
-  - target: application_layer1_2
-    internal_ip: 10.0.2.153
-    value: 0
+  - target: cloud1_generator1
+    internal_ip: 10.0.2.252
+    value: 4
+  - target: cloud1_generator2
+    internal_ip: 10.0.2.51
+    value: 4
