@@ -301,6 +301,9 @@ class Tc(object):
         interface_args.append("--overwrite")
         try:
             subprocess.run(interface_args, check=True)
+            # print the executed command arguments
+            print(" ".join(interface_args))
+            logging.debug(" ".join(interface_args))
         except subprocess.CalledProcessError as err:
             logging.error(err)
 
@@ -406,14 +409,20 @@ def do_action(path, agent, content_json_array):
     content_dict = content_json_array['data']
 
     if path == "/application":
-        schedule_application(agent, content_dict)
+        modify_application(agent, content_dict)
 
     if path == "/interface":
-        schedule_interface(agent, content_dict)
+        modify_interface(agent, content_dict)
         print("Enters interface")
 
 
-def schedule_application(agent, content_dict):
+def modify_application(agent, content_dict):
+    """
+    Apply modifications to specified application from scheduled event.
+    :param agent:
+    :param content_dict:
+    :return:
+    """
     if 'cpu' in content_dict:
         agent.docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
         print("New cpu limit has been setup")
@@ -423,28 +432,14 @@ def schedule_application(agent, content_dict):
         print("New memory has been setup")
 
 
-def schedule_interface(agent, content_dict):
-    if 'bandwidth' in content_dict:
-        agent.tc.interface(content_dict['id'], bandwidth=content_dict['bandwidth'])
-        print("New bandwidth setup")
-
-    if 'status' in content_dict and content_dict['active'] == 'on':
-        agent.tc.enable(content_dict['id'])
-        print("Interface enabled")
-
-    if 'status' in content_dict and content_dict['active'] == 'off':
-        agent.tc.disable(content_dict['id'])
-        print("Interface disabled")
-
-    if 'delay' in content_dict:
-        agent.tc.interface(content_dict['id'], delay=content_dict['delay'])
-        print("New delay setup")
-
-    if 'loss' in content_dict:
-        agent.tc.interface(content_dict['id'], loss=content_dict['loss'])
-        print("New packet loss rate setup")
-
-    # agent.tc.show_rules(content_dict['id'])
+def modify_interface(agent, content_dict):
+    """
+    Apply modifications to specified interface from scheduled event.
+    :param agent:
+    :param content_dict:
+    :return:
+    """
+    agent.tc.interface(content_dict['id'], **content_dict)
 
 
 def main():
