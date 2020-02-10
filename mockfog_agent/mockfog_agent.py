@@ -1,3 +1,4 @@
+import re
 import threading
 import json
 import sched
@@ -8,7 +9,8 @@ import docker
 import subprocess
 import logging
 import docker.errors
-import pprint
+from pprint import pprint
+import sys
 
 
 class ContainerStatus:
@@ -301,9 +303,6 @@ class Tc(object):
         interface_args.append("--overwrite")
         try:
             subprocess.run(interface_args, check=True)
-            # print the executed command arguments
-            print(" ".join(interface_args))
-            logging.debug(" ".join(interface_args))
         except subprocess.CalledProcessError as err:
             logging.error(err)
 
@@ -368,6 +367,11 @@ class WebServerHandler(BaseHTTPRequestHandler):
     _stage_counter = 0
     _last_scheduled_timestamp = None
 
+    @staticmethod
+    def _update_report():
+        WebServerHandler._stage_counter += 1
+        WebServerHandler._stage_report[WebServerHandler._stage_counter] = WebServerHandler._agent.status.to_json()
+
     def do_POST(self):
         self.send_response(200)
         content_length = int(self.headers['Content-Length'])
@@ -386,43 +390,42 @@ class WebServerHandler(BaseHTTPRequestHandler):
         content_string = body.decode('utf-8')
         content_json_array = json.loads(content_string)
 
-        # self._stage_counter += 1
-        # self._stage_report['stage' + str(self._stage_counter)] = self._agent.status.to_json()
-
         scheduler = sched.scheduler(time.time, time.sleep)
 
+        scheduled_time = None
         for event in content_json_array:
             scheduled_time = int(event['timestamp']) / 1000.0
-            scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, self._agent, event))
+            scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, WebServerHandler._agent, event))
+
+        assert scheduled_time is not None
+        scheduler.enterabs(scheduled_time + 1, 0, self._update_report)
 
         threading.Thread(target=scheduler.run).start()
 
     def do_GET(self):
-        self.send_response(200)
+        match = re.match(r'/reports(\d+)', self.path)
+        if match:
+            stage = match.group(1)
+            self.send_response(200)
+            for s in (sys.stdout, self.wfile):
+                print(WebServerHandler._stage_report[stage], file=s)
+        else:
+            self.send_error(404)
         self.end_headers()
-
-        if self.path == "/reports":
-            pprint.pprint(self._stage_report)
 
 
 def do_action(path, agent, content_json_array):
     content_dict = content_json_array['data']
 
     if path == "/application":
-        modify_application(agent, content_dict)
+        schedule_application(agent, content_dict)
 
     if path == "/interface":
-        modify_interface(agent, content_dict)
+        schedule_interface(agent, content_dict)
         print("Enters interface")
 
 
-def modify_application(agent, content_dict):
-    """
-    Apply modifications to specified application from scheduled event.
-    :param agent:
-    :param content_dict:
-    :return:
-    """
+def schedule_application(agent, content_dict):
     if 'cpu' in content_dict:
         agent.docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
         print("New cpu limit has been setup")
@@ -432,14 +435,28 @@ def modify_application(agent, content_dict):
         print("New memory has been setup")
 
 
-def modify_interface(agent, content_dict):
-    """
-    Apply modifications to specified interface from scheduled event.
-    :param agent:
-    :param content_dict:
-    :return:
-    """
-    agent.tc.interface(content_dict['id'], **content_dict)
+def schedule_interface(agent, content_dict):
+    if 'bandwidth' in content_dict:
+        agent.tc.interface(content_dict['id'], bandwidth=content_dict['bandwidth'])
+        print("New bandwidth setup")
+
+    if 'active' in content_dict and content_dict['active'] == 'true':
+        agent.tc.enable(content_dict['id'])
+        print("Interface enabled")
+
+    if 'active' in content_dict and content_dict['active'] == 'false':
+        agent.tc.disable(content_dict['id'])
+        print("Interface disabled")
+
+    if 'delay' in content_dict:
+        agent.tc.interface(content_dict['id'], delay=content_dict['delay'])
+        print("New delay setup")
+
+    if 'loss' in content_dict:
+        agent.tc.interface(content_dict['id'], loss=content_dict['loss'])
+        print("New packet loss rate setup")
+
+    agent.tc.show_rules(content_dict['id'])
 
 
 def main():
