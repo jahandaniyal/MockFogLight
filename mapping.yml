@@ -1,0 +1,14 @@
+- ip: 52.29.200.79
+  name: generator2
+- ip: 3.120.111.80
+  name: application_layer2
+- ip: 18.197.71.242
+  name: generator4
+- ip: 18.194.173.205
+  name: generator3
+- ip: 18.195.97.130
+  name: generator1
+- ip: 52.57.140.210
+  name: application_layer1_1
+- ip: 35.158.120.69
+  name: application_layer1_2

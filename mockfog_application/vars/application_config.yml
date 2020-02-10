@@ -4,14 +4,21 @@
 application_config:
   - name: genConf1
     application_definition: generator
-    nodes: cloud1_generator1, cloud1_generator2
+    nodes: generator1, generator2, generator3, generator4
     vars:
       env:
-        - remote:
+        - remote: "TEST"
 
-  - name: appConf1
+  - name: appConfLayer1
     application_definition: application
-    nodes: cloud1_application
+    nodes: application_layer1_1, application_layer1_2
     vars:
       env:
-        - remote: null
+        - MF_CONFIG: The IP of Node1 is 
+
+  - name: appConfLayer2
+    application_definition: application
+    nodes: application_layer2
+    vars:
+      env:
+        - MF_CONFIG: The IP of Node1 is 

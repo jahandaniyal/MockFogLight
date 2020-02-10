@@ -52,6 +52,7 @@
           - 4567
           - 4568
           - 20202
+          - 20200
         cidr_ip: 0.0.0.0/0
         rule_desc: Allow inbound SSH
   register: public_security_group
