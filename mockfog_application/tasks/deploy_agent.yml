@@ -4,6 +4,11 @@
 - name: Include check_variables play
   include: "{{ playbook_dir }}/mockfog_application/tasks/check_variables.yml"
 
+- name: Remove existing mockfog agent script
+  file:
+    path: mockfog_agent.py
+    state: absent
+
 - name: Copy mockfog agent script
   copy:
     src: "{{ playbook_dir }}/mockfog_agent/mockfog_agent.py"
