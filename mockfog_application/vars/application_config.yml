@@ -7,18 +7,24 @@ application_config:
     nodes: generator1, generator2, generator3, generator4
     vars:
       env:
-        - remote: "TEST"
+        remote: "TEST"
+        volumes:
+            host: /home/ec2-user/test.txt
+            container: /test.txt
 
   - name: appConfLayer1
     application_definition: application
     nodes: application_layer1_1, application_layer1_2
     vars:
       env:
-        - MF_CONFIG: The IP of Node1 is 
+        MF_CONFIG: The IP of Node1 is 
 
   - name: appConfLayer2
     application_definition: application
     nodes: application_layer2
     vars:
       env:
-        - MF_CONFIG: The IP of Node1 is 
+        MF_CONFIG: The IP of Node1 is 
+        volumes:
+            host: /home/ec2-user/config.yaml
+            container: /app/config.yaml
