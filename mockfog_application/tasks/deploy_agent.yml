@@ -26,7 +26,7 @@
   become_user: ec2-user
 
 - name: Install mockfog agent dependencies
-  shell: "sudo pip install docker tcconfig"
+  shell: "sudo .mockfog_agent/bin/pip install docker tcconfig"
   become_user: ec2-user
 
 - name: start mockfog agent
