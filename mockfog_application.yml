@@ -7,6 +7,7 @@
     - "{{ playbook_dir }}/mockfog_application/vars/mapping.yml"
     - "{{ playbook_dir }}/mockfog_application/vars/application_definition.yml"
     - "{{ playbook_dir }}/mockfog_application/vars/application_config.yml"
+    - "{{ playbook_dir }}/mockfog_application/vars/mapping.yml"
   remote_user: ec2-user
   become: yes
   vars:

@@ -28,7 +28,7 @@
     path: app
     state: absent
 
-- name: create app_config dir
+- name: create app dir
   file:
     path: app
     state: directory
