@@ -3,7 +3,6 @@ import logging
 import re
 import sched
 import subprocess
-import sys
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -367,13 +366,11 @@ class Agent(object):
 class WebServerHandler(BaseHTTPRequestHandler):
     _agent = Agent()
     _stage_report = {}
-    _stage_counter = 0
     _last_scheduled_timestamp = None
 
     @staticmethod
-    def _update_report():
-        WebServerHandler._stage_counter += 1
-        WebServerHandler._stage_report[WebServerHandler._stage_counter] = WebServerHandler._agent.status.to_json()
+    def _update_report(stage_id):
+        WebServerHandler._stage_report[stage_id] = WebServerHandler._agent.status.to_json()
 
     def do_POST(self):
         if  len(WebServerHandler._stage_report) == 0:
@@ -397,23 +394,22 @@ class WebServerHandler(BaseHTTPRequestHandler):
 
         scheduler = sched.scheduler(time.time, time.sleep)
 
-        scheduled_time = None
         for event in content_json_array:
+            stage_id = event['id']
             scheduled_time = int(event['timestamp']) / 1000.0
             scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, WebServerHandler._agent, event))
+            scheduler.enterabs(scheduled_time + 1, 0, lambda :self._update_report(stage_id))
 
-        assert scheduled_time is not None
-        scheduler.enterabs(scheduled_time + 1, 0, self._update_report)
 
         threading.Thread(target=scheduler.run).start()
 
     def do_GET(self):
-        match = re.match(r'/reports/(\d+)', self.path)
+        match = re.match(r'/reports/(.+)', self.path)
         if match:
             self.send_response(200)
             self.end_headers()
-            stage = int(match.group(1))
-            self.wfile.write(WebServerHandler._stage_report[stage].encode())
+            stage_id = match.group(1)
+            self.wfile.write(WebServerHandler._stage_report[stage_id].encode())
         else:
             self.send_error(404)
             self.end_headers()
