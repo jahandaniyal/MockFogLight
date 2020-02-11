@@ -31,6 +31,11 @@
     source: pull
     force_source: yes
 
+- name: Recursively remove existing app directory
+  file:
+    path: /app
+    state: absent
+
 - name: create app_config dir
   file:
     path: "/app"
