@@ -1,0 +1,19 @@
+---
+- name: copy telegraf configuration
+  copy:
+    src: "{{ playbook_dir }}/mockfog_agent/telegraf.conf"
+    dest: telegraf.conf
+    owner: ec2-user
+    group: ec2-user
+    mode: '0644'
+
+- name: start telegraf container
+  docker_container:
+    name: "telegraf_mockfog"
+    image: "telegraf:alpine"
+    state: started
+    auto_remove: yes
+    log_driver: journald
+    volumes:
+      - "/home/ec2-user/telegraf.conf:/etc/telegraf/telegraf.conf"
+      - "/var/run/docker.sock:/var/run/docker.sock"
