@@ -41,7 +41,7 @@
 
 - name: Copy config.yaml script
   copy:
-    src: "{{ playbook_dir }}/mockfog_application/templates/config.yaml"
+    src: "{{ playbook_dir }}{{ app_vars.volumes.path }}"
     dest: /app/config.yaml
     owner: ec2-user
     group: ec2-user
@@ -59,7 +59,7 @@
     ports: "{{ ports }}"
     env_file: "{{ folder }}/env_file.env"
     volumes:
-      - "{{ app_vars.volumes.host }}:{{ app_vars.volumes.container }}"
+      - "/home/ec2-user/app/config.yaml:{{ app_vars.volumes.container }}"
   when: app_vars.volumes is defined and app_vars.volumes|length > 0
   ignore_errors: true
 
