@@ -16,8 +16,12 @@
   shell: "virtualenv .mockfog_agent -p /usr/bin/python3"
   become_user: ec2-user
 
+- name: activate virtual env
+  shell: ". .mockfog_agent/bin/activate"
+  become_user: ec2-user
+
 - name: Install mockfog agent dependencies
-  shell: "sudo .mockfog_agent/bin/pip install docker tcconfig"
+  shell: "sudo pip install docker tcconfig"
   become_user: ec2-user
 
 - name: start mockfog agent
