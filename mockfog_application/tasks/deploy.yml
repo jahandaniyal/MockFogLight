@@ -23,15 +23,30 @@
     source: pull
     force_source: yes
 
-- name: Check if app-specific env_file exists
-  stat: path="{{ inventory_hostname }}.env.j2"
-  register: env_file
+- name: create app_config dir
+  file:
+    path: "/app"
+    state: directory
+    recurse: yes
+    owner: ec2-user
+    group: ec2-user
+#  when: app_vars.volumes is defined and app_vars.volumes|length > 0
 
 - name: Write application config
   template:
-    src: "{{ inventory_hostname }}.env.j2"
+    src: "{{ playbook_dir }}/mockfog_application/templates/env_file.env.j2"
     dest: "{{ folder }}/env_file.env"
-  when: env_file.stat.exists
+  ignore_errors: true
+#  when: env_file.stat.exists
+
+- name: Copy config.yaml script
+  copy:
+    src: "{{ playbook_dir }}/mockfog_application/templates/config.yaml"
+    dest: /app/config.yaml
+    owner: ec2-user
+    group: ec2-user
+    mode: '0644'
+  when: app_vars.volumes is defined and app_vars.volumes|length > 0
 
 - name: Start application containers which require volumes
   docker_container:
@@ -42,11 +57,10 @@
     log_driver: journald
     exposed_ports: "{{ expose }}"
     ports: "{{ ports }}"
-#    env_file: "{{ folder }}/env_file.env"
+    env_file: "{{ folder }}/env_file.env"
     volumes:
-#      - "{{ folder }}/env_file.env:{{ folder }}/env_file.env"
-      - "{{ env_vars.volumes.host }}:{{ env_vars.volumes.container }}"
-  when: env_vars.volumes is defined and env_vars.volumes|length > 0
+      - "{{ app_vars.volumes.host }}:{{ app_vars.volumes.container }}"
+  when: app_vars.volumes is defined and app_vars.volumes|length > 0
   ignore_errors: true
 
 - name: Start application containers
@@ -58,7 +72,8 @@
     log_driver: journald
     exposed_ports: "{{ expose }}"
     ports: "{{ ports }}"
-  when: env_vars.volumes is undefined or env_vars.volumes|length == 0
+    env_file: "{{ folder }}/env_file.env"
+  when: app_vars.volumes is undefined or app_vars.volumes|length == 0
   ignore_errors: true
 
 #- name: Start docker application containers
