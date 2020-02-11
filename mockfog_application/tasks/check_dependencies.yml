@@ -48,12 +48,12 @@
   set_fact:
     app_config: "{{ item }}"
     app_def: "{{ item.application_definition }}"
-    env_vars: "{{ item.vars.env }}"
+    app_vars: "{{ item.vars }}"
   with_items: "{{ _app_config }}"
   when: '"{{ inventory_hostname }}" in item.nodes'
 
 - debug:
-    msg: "{{ env_vars }}"
+    msg: "{{ app_vars }}"
 
 - name: Get Application Definition Vars
   set_fact:
