@@ -336,7 +336,10 @@ class Tc(object):
             # print the executed command arguments
             print(" ".join(interface_args))
             logging.debug(" ".join(interface_args))
-            subprocess.run(interface_args, check=True)
+            if len(interface_args) > 3:
+                subprocess.run(interface_args, check=True)
+            else:
+                print("command not executed insufficient arguments")
         except subprocess.CalledProcessError as err:
             logging.error(err)
 
