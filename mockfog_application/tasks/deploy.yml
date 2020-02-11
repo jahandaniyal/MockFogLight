@@ -50,7 +50,7 @@
 - name: Copy config.yaml script
   copy:
     src: "{{ playbook_dir }}{{ app_vars.volumes.path }}"
-    dest: /app/config.yaml
+    dest: app/config.yaml
     owner: ec2-user
     group: ec2-user
     mode: '0644'
