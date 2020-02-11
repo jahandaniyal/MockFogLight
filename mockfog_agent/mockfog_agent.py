@@ -19,10 +19,6 @@ class ContainerStatus:
         self.cpu_shares = "1024"
         self.connections = {}
 
-        self.bandwidth = ""
-        self.latency = "0.0ms"
-        self.packet_loss = "0"
-
     def get_name(self):
         return self.name
 
@@ -38,20 +34,38 @@ class ContainerStatus:
     def set_cpu_shares(self, cpu_shares):
         self.cpu_shares = cpu_shares
 
+    def to_json_app(self):
+        return """{
+        "memory_limit": "%s",
+        "cpu_shares": "%s",
+    }""" % (self.memory_limit, self.cpu_shares)
+
+
+class InterfaceStatus:
+    def __init__(self, interface):
+        self.interface = interface
+        self.bandwidth = ""
+        self.latency = "0.0ms"
+        self.packet_loss = "0"
+        self.active = "true"
+
+    def get_interface(self):
+        return self.interface
+
+    def set_interface(self, interface):
+        self.interface = interface
+
+    def get_active(self):
+        return self.active
+
+    def set_active(self, active):
+        self.active = active
+
     def get_bandwidth(self):
         return self.bandwidth
 
     def set_bandwidth(self, bandwidth):
         self.bandwidth = bandwidth
-
-    def get_connection_status(self, connection_name):
-        if not (connection_name in self.connections):
-            self.connections[connection_name] = "disconnected"
-
-        return self.connections[connection_name]
-
-    def set_connection_status(self, connection_name, status):
-        self.connections[connection_name] = status
 
     def get_latency(self):
         return self.latency
@@ -102,56 +116,70 @@ class ContainerStatus:
         except:
             print("'tcshow' failed, using saved values")
 
-    def to_json(self):
+    def to_json_interface(self):
         self.update_values()
 
-        connections_json = "{"
-        i = 0
-
-        for conn_name, conn_status in self.connections.items():
-            if i != 0:
-                connections_json += ','
-
-            connections_json += '"%s": "%s"' % (conn_name, conn_status)
-            i += 1
-
-        connections_json += "}"
-
         return """{
-        "memory_limit": "%s",
-        "cpu_shares": "%s",
         "bandwidth": "%s",
         "latency": "%s",
         "packet_loss": "%s",
-        "connections": %s
-    }""" % (self.memory_limit, self.cpu_shares, self.bandwidth, self.latency, self.packet_loss, connections_json)
+        "active" : "%s",
+    }""" % (self.bandwidth, self.latency, self.packet_loss, self.active)
 
 
 class AgentStatus:
     def __init__(self):
+        self.interface = InterfaceStatus("docker0")
         self.containers = {
-            'docker0': ContainerStatus('docker0')
         }
 
-    def get_container(self, container_name):
+    def set_container(self, container_name):
         if not (container_name in self.containers):
             self.containers[container_name] = ContainerStatus(container_name)
 
+    def get_container(self, container_name):
         return self.containers[container_name]
+
+    def set_interface(self, interface_id):
+        self.interface = InterfaceStatus(interface_id)
+
+    def get_interface(self):
+        return self.interface
 
     def to_json(self):
         json = "{\n    "
         i = 0
+
+        if not self.containers:
+            if i != 0:
+                json += ',\n    '
+
+            json += '"%s": ' % ("")
+            json += ContainerStatus("").to_json_app()
+            i += 1
+
+            json += "\n\n    "
+            json += '"%s": ' % (self.get_interface().interface)
+            json += self.get_interface().to_json_interface()
+            i += 1
+            json += "\n}\n"
+            return json
+
 
         for name, container in self.containers.items():
             if i != 0:
                 json += ',\n    '
 
             json += '"%s": ' % (name)
-            json += container.to_json()
+            json += container.to_json_app()
             i += 1
 
-        json += "\n}"
+            json += "\n\n    "
+            json += '"%s": ' % (self.get_interface().interface)
+            json += self.get_interface().to_json_interface()
+            i += 1
+
+        json += "\n}\n"
         return json
 
 
@@ -177,6 +205,7 @@ class Docker(object):
         try:
             container = self.__docker_client.containers.get(container_name)
             container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
+            self.status.set_container(container_name)
             self.status.get_container(container_name).set_memory_limit(mem_limit)
         except docker.errors.NotFound:
             logging.warning(container_name + ": not found on this host")
@@ -202,6 +231,7 @@ class Docker(object):
         try:
             container = self.__docker_client.containers.get(container_name)
             container.update(cpu_shares=cpu_shares)
+            self.status.set_container(container_name)
             self.status.get_container(container_name).set_cpu_shares(cpu_shares)
         except docker.errors.NotFound:
             logging.warning(container_name + ": not found on this host")
@@ -288,16 +318,18 @@ class Tc(object):
         delay = kwargs.pop('delay', None)
         loss = kwargs.pop('loss', None)
 
+        self.status.set_interface(interface)
         interface_args = ["tcset", interface]
         if bandwidth:
             interface_args.extend(["--rate", bandwidth])
-            self.status.get_container("docker0").set_bandwidth(bandwidth)
+            self.status.get_interface().set_bandwidth(bandwidth)
         if delay:
             interface_args.extend(["--delay", delay])
-            self.status.get_container("docker0").set_latency(delay)
+            self.status.get_interface().set_latency(delay)
         if loss:
             interface_args.extend(["--loss", loss])
-            self.status.get_container("docker0").set_packet_loss(loss)
+            self.status.get_interface().set_packet_loss(loss)
+
         # add overwrite flag to be able to update existing rules.
         interface_args.append("--overwrite")
         try:
@@ -337,6 +369,7 @@ class Tc(object):
         :return:
         """
         try:
+            self.status.get_interface().set_active('false')
             subprocess.run(["ip", "link", "set", interface, "down"], check=True)
         except subprocess.CalledProcessError:
             logging.warning("Insufficient permissions")
@@ -349,6 +382,7 @@ class Tc(object):
         :return:
         """
         try:
+            self.status.get_interface().set_active('true')
             subprocess.run(["ip", "link", "set", interface, "up"], check=True)
         except subprocess.CalledProcessError:
             logging.warning("Insufficient permissions")
@@ -373,7 +407,7 @@ class WebServerHandler(BaseHTTPRequestHandler):
         WebServerHandler._stage_report[stage_id] = WebServerHandler._agent.status.to_json()
 
     def do_POST(self):
-        if  len(WebServerHandler._stage_report) == 0:
+        if len(WebServerHandler._stage_report) == 0:
             print("Set stage 0 report")
             WebServerHandler._stage_report[0] = WebServerHandler._agent.status.to_json()
         self.send_response(200)
@@ -423,7 +457,6 @@ def do_action(path, agent, content_json_array):
 
     if path == "/interface":
         modify_interface(agent, content_dict)
-        print("Enters interface")
 
 
 def modify_application(agent, content_dict):
@@ -433,13 +466,12 @@ def modify_application(agent, content_dict):
     :param content_dict:
     :return:
     """
+
     if 'cpu' in content_dict:
         agent.docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
-        print("New cpu limit has been setup")
 
     if 'memory' in content_dict:
         agent.docker.update_memory_limit(content_dict['name'], content_dict['memory'])
-        print("New memory has been setup")
 
 
 def modify_interface(agent, content_dict):
@@ -450,6 +482,12 @@ def modify_interface(agent, content_dict):
     :return:
     """
     agent.tc.interface(content_dict['id'], **content_dict)
+
+    if 'active' in content_dict and content_dict['active'] == 'true':
+        agent.tc.enable(content_dict['id'])
+
+    if 'active' in content_dict and content_dict['active'] == 'false':
+        agent.tc.disable(content_dict['id'])
 
 
 def main():
