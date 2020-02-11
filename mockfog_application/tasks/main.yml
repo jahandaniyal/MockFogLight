@@ -11,3 +11,5 @@
 - import_tasks: deploy_agent.yml
   tags: deploy_agent
 
+- import_tasks: deploy_telegraf.yml
+  tags: deploy_telegraf
