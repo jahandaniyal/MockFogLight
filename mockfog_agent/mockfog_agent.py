@@ -104,9 +104,9 @@ class InterfaceStatus:
         }"""
 
         try:
-            result = subprocess.run(["tcshow", self.name], stdout=subprocess.PIPE)
+            result = subprocess.run(["tcshow", self.interface], stdout=subprocess.PIPE)
             data = json.loads(result.stdout)
-            for _, values in data[self.name]["outgoing"].items():
+            for _, values in data[self.interface]["outgoing"].items():
                 if "delay" in values:
                     self.latency = values["delay"]
                 if "loss" in values:
@@ -372,8 +372,8 @@ class Tc(object):
         :return:
         """
         try:
-            self.status.get_interface().set_active('false')
             subprocess.run(["ip", "link", "set", interface, "down"], check=True)
+            self.status.get_interface().set_active('false')
         except subprocess.CalledProcessError:
             logging.warning("Insufficient permissions")
 
@@ -385,8 +385,8 @@ class Tc(object):
         :return:
         """
         try:
-            self.status.get_interface().set_active('true')
             subprocess.run(["ip", "link", "set", interface, "up"], check=True)
+            self.status.get_interface().set_active('true')
         except subprocess.CalledProcessError:
             logging.warning("Insufficient permissions")
 
