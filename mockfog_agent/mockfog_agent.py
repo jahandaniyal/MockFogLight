@@ -486,10 +486,10 @@ def modify_interface(agent, content_dict):
     """
     agent.tc.interface(content_dict['id'], **content_dict)
 
-    if 'active' in content_dict and content_dict['active'] == 'true':
+    if content_dict.get('active'):
         agent.tc.enable(content_dict['id'])
 
-    if 'active' in content_dict and content_dict['active'] == 'false':
+    elif not content_dict.get('active'):
         agent.tc.disable(content_dict['id'])
 
 
