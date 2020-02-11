@@ -25,12 +25,12 @@
 
 - name: Recursively remove existing app directory
   file:
-    path: /app
+    path: app
     state: absent
 
 - name: create app_config dir
   file:
-    path: "/app"
+    path: app
     state: directory
     recurse: yes
     owner: ec2-user
