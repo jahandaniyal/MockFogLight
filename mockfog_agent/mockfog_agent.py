@@ -407,13 +407,12 @@ class WebServerHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _update_report(stage_id):
-        WebServerHandler._stage_report[stage_id] = WebServerHandler._agent.status.to_json()
+        WebServerHandler._stage_report[str(stage_id)] = WebServerHandler._agent.status.to_json()
 
     def do_POST(self):
         if len(WebServerHandler._stage_report) == 0:
             print("Set stage 0 report")
-            WebServerHandler._stage_report[0] = WebServerHandler._agent.status.to_json()
-
+            WebServerHandler._stage_report["0"] = WebServerHandler._agent.status.to_json()
         self.send_response(200)
         content_length = int(self.headers['Content-Length'])
         content_type = self.headers['Content-Type']
@@ -443,6 +442,7 @@ class WebServerHandler(BaseHTTPRequestHandler):
         threading.Thread(target=scheduler.run).start()
 
     def do_GET(self):
+        print(WebServerHandler._stage_report)
         match = re.match(r'/reports/(.+)', self.path)
         if match:
             self.send_response(200)
@@ -488,12 +488,11 @@ def modify_interface(agent, content_dict):
     """
     agent.tc.interface(content_dict['id'], **content_dict)
 
-    if content_dict.get('active'):
-        agent.tc.enable(content_dict['id'])
-
-    elif not content_dict.get('active'):
-        agent.tc.disable(content_dict['id'])
-
+    if 'active' in content_dict:
+        if content_dict['active']:
+            agent.tc.enable(content_dict['id'])
+        else:
+            agent.tc.disable(content_dict['id'])
 
 def main():
     port = 20200
