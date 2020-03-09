@@ -13,4 +13,3 @@ with open('mapping.yml', 'w') as outfile:
 
 with open('mockfog_application/vars/mapping.yml', 'w') as outfile:
     print(yaml.dump(yaml.load(json.dumps(ec2_mapping)), outfile, default_flow_style=False))
-
