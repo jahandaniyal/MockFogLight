@@ -1,3 +1,3 @@
 ---
 # defaults file for mockfog_application
-folder: /app
+folder: app
