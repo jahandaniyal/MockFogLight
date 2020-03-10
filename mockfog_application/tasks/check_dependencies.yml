@@ -63,18 +63,3 @@
     ports: "{{ item.ports }}"
   with_items: "{{ _app_def }}"
   when: item.name == "{{ app_def }}"
-
-#- name: Install boto3
-#  shell: sudo pip3 install boto3
-
-#- name: Install pip
-#  shell: sudo yum -y install python-pip
-#
-#- name: Install Docker
-#  shell: sudo amazon-linux-extras install docker -y
-#
-#- name: Add EMQX repo
-#  shell: sudo yum-config-manager --add-repo https://repos.emqx.io/emqx-ce/redhat/centos/7/emqx-ce.repo -y
-#
-#- name: Install EMQX
-#  shell: sudo yum install emqx -y

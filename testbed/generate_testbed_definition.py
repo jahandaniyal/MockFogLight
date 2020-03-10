@@ -20,7 +20,6 @@ g = nx.Graph()
 
 # Generate topology
 
-# topologies.simple_topology(g)
 generate_topologies.topology(g)
 
 # Process graph

@@ -125,6 +125,3 @@
     env_file: "{{ folder }}/env_file.env"
   when: app_vars.volumes is undefined or app_vars.volumes|length == 0
   ignore_errors: true
-
-#- name: Start docker application containers
-#  shell: docker run -d -m256M --cpus 2 -it --rm -p {{ ports }} {{ docker_image }}

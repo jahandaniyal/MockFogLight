@@ -17,7 +17,8 @@ def add_node(g: Graph, node):
         g.add_node(node['name'], **node_attrs(type='zone'))
 
     # if you do not supply a zone, the node is interpreted as being a machine
-    # the role is attached as tag to the AWS instance and can be used to run tasks only on machines with a certain role (see mockfog_application.yml notebook)
+    # the role is attached as tag to the AWS instance and can be used to run
+    # tasks only on machines with a certain role (see mockfog_application.yml notebook)
     else:
         g.add_node(node['name'], **node_attrs(role=node.get('role', None), flavor=node.get('flavor', None), image=node.get('image', None)))
 

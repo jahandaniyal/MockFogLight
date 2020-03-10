@@ -487,11 +487,10 @@ def modify_interface(agent, content_dict):
     """
     agent.tc.interface(content_dict['id'], **content_dict)
 
-    if 'active' in content_dict:
-        if content_dict['active']:
-            agent.tc.enable(content_dict['id'])
-        else:
-            agent.tc.disable(content_dict['id'])
+    if content_dict.get('active', None):
+        agent.tc.enable(content_dict['id'])
+    else:
+        agent.tc.disable(content_dict['id'])
 
 def main():
     port = 20200

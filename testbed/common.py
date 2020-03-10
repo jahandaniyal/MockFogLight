@@ -45,7 +45,6 @@ def app_config(**kwargs):
     config = {
         **kwargs,
     }
-    # assert 'timeout' in config
     return config
 
 
@@ -101,13 +100,6 @@ def resolve_names(g):
                   attrs['type'] == 'machine'}
     machine_nodes = [(node, attrs) for node, attrs in g.nodes(data=True) if
                      attrs['type'] == 'machine']
-    # for node, attrs in machine_nodes:
-    #     for config in attrs['app_configs']:
-    #         config['internal_ip'] = name_to_ip[config['connect_to']]
-    #         app_configs[node] = {}
-    #         app_configs[node].update(config)
-    #     # g.node[node]['app_configs'] = attrs['app_configs']
-    #     del g.node[node]['app_configs']
     return app_configs
 
 def get_app_configurations():
