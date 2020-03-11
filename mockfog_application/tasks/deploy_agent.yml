@@ -30,4 +30,4 @@
   become_user: ec2-user
 
 - name: start mockfog agent
-  shell: "sudo nohup .mockfog_agent/bin/python mockfog_agent.py </dev/null >/dev/null 2>&1 & sleep 1"
+  shell: "sudo nohup env PATH=$PATH .mockfog_agent/bin/python mockfog_agent.py </dev/null >/dev/null 2>&1 & sleep 1"
