@@ -1,13 +1,15 @@
 import json
+import logging
+import re
 import sched
+import subprocess
+import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from io import BytesIO
+
 import docker
-import subprocess
-import logging
 import docker.errors
-import pprint
 
 
 class ContainerStatus:
@@ -16,10 +18,6 @@ class ContainerStatus:
         self.memory_limit = "256"
         self.cpu_shares = "1024"
         self.connections = {}
-
-        self.bandwidth = ""
-        self.latency = "0.0ms"
-        self.packet_loss = "0"
 
     def get_name(self):
         return self.name
@@ -36,20 +34,38 @@ class ContainerStatus:
     def set_cpu_shares(self, cpu_shares):
         self.cpu_shares = cpu_shares
 
+    def to_json_app(self):
+        return """{
+        "memory_limit": "%s",
+        "cpu_shares": "%s",
+    }""" % (self.memory_limit, self.cpu_shares)
+
+
+class InterfaceStatus:
+    def __init__(self, interface):
+        self.interface = interface
+        self.bandwidth = ""
+        self.latency = "0.0ms"
+        self.packet_loss = "0"
+        self.active = "true"
+
+    def get_interface(self):
+        return self.interface
+
+    def set_interface(self, interface):
+        self.interface = interface
+
+    def get_active(self):
+        return self.active
+
+    def set_active(self, active):
+        self.active = active
+
     def get_bandwidth(self):
         return self.bandwidth
 
     def set_bandwidth(self, bandwidth):
         self.bandwidth = bandwidth
-
-    def get_connection_status(self, connection_name):
-        if not (connection_name in self.connections):
-            self.connections[connection_name] = "disconnected"
-
-        return self.connections[connection_name]
-
-    def set_connection_status(self, connection_name, status):
-        self.connections[connection_name] = status
 
     def get_latency(self):
         return self.latency
@@ -88,9 +104,9 @@ class ContainerStatus:
         }"""
 
         try:
-            result = subprocess.run(["tcshow", self.name], stdout=subprocess.PIPE)
+            result = subprocess.run(["tcshow", self.interface], stdout=subprocess.PIPE)
             data = json.loads(result.stdout)
-            for _, values in data[self.name]["outgoing"].items():
+            for _, values in data[self.interface]["outgoing"].items():
                 if "delay" in values:
                     self.latency = values["delay"]
                 if "loss" in values:
@@ -100,56 +116,70 @@ class ContainerStatus:
         except:
             print("'tcshow' failed, using saved values")
 
-    def to_json(self):
+    def to_json_interface(self):
         self.update_values()
 
-        connections_json = "{"
-        i = 0
-
-        for conn_name, conn_status in self.connections.items():
-            if i != 0:
-                connections_json += ','
-
-            connections_json += '"%s": "%s"' % (conn_name, conn_status)
-            i += 1
-
-        connections_json += "}"
-
         return """{
-        "memory_limit": "%s",
-        "cpu_shares": "%s",
         "bandwidth": "%s",
         "latency": "%s",
         "packet_loss": "%s",
-        "connections": %s
-    }""" % (self.memory_limit, self.cpu_shares, self.bandwidth, self.latency, self.packet_loss, connections_json)
+        "active" : "%s",
+    }""" % (self.bandwidth, self.latency, self.packet_loss, self.active)
 
 
 class AgentStatus:
     def __init__(self):
+        self.interface = InterfaceStatus("docker0")
         self.containers = {
-            'docker0': ContainerStatus('docker0')
         }
 
-    def get_container(self, container_name):
+    def set_container(self, container_name):
         if not (container_name in self.containers):
             self.containers[container_name] = ContainerStatus(container_name)
 
+    def get_container(self, container_name):
         return self.containers[container_name]
+
+    def set_interface(self, interface_id):
+        self.interface = InterfaceStatus(interface_id)
+
+    def get_interface(self):
+        return self.interface
 
     def to_json(self):
         json = "{\n    "
         i = 0
+
+        if not self.containers:
+            if i != 0:
+                json += ',\n    '
+
+            json += '"%s": ' % ("")
+            json += ContainerStatus("").to_json_app()
+            i += 1
+
+            json += "\n\n    "
+            json += '"%s": ' % (self.get_interface().interface)
+            json += self.get_interface().to_json_interface()
+            i += 1
+            json += "\n}\n"
+            return json
+
 
         for name, container in self.containers.items():
             if i != 0:
                 json += ',\n    '
 
             json += '"%s": ' % (name)
-            json += container.to_json()
+            json += container.to_json_app()
             i += 1
 
-        json += "\n}"
+            json += "\n\n    "
+            json += '"%s": ' % (self.get_interface().interface)
+            json += self.get_interface().to_json_interface()
+            i += 1
+
+        json += "\n}\n"
         return json
 
 
@@ -175,6 +205,7 @@ class Docker(object):
         try:
             container = self.__docker_client.containers.get(container_name)
             container.update(mem_limit=mem_limit, memswap_limit=mem_limit)
+            self.status.set_container(container_name)
             self.status.get_container(container_name).set_memory_limit(mem_limit)
         except docker.errors.NotFound:
             logging.warning(container_name + ": not found on this host")
@@ -200,6 +231,7 @@ class Docker(object):
         try:
             container = self.__docker_client.containers.get(container_name)
             container.update(cpu_shares=cpu_shares)
+            self.status.set_container(container_name)
             self.status.get_container(container_name).set_cpu_shares(cpu_shares)
         except docker.errors.NotFound:
             logging.warning(container_name + ": not found on this host")
@@ -286,20 +318,28 @@ class Tc(object):
         delay = kwargs.pop('delay', None)
         loss = kwargs.pop('loss', None)
 
+        self.status.set_interface(interface)
         interface_args = ["tcset", interface]
         if bandwidth:
             interface_args.extend(["--rate", bandwidth])
-            self.status.get_container("docker0").set_bandwidth(bandwidth)
+            self.status.get_interface().set_bandwidth(bandwidth)
         if delay:
             interface_args.extend(["--delay", delay])
-            self.status.get_container("docker0").set_latency(delay)
+            self.status.get_interface().set_latency(delay)
         if loss:
             interface_args.extend(["--loss", loss])
-            self.status.get_container("docker0").set_packet_loss(loss)
+            self.status.get_interface().set_packet_loss(loss)
+
         # add overwrite flag to be able to update existing rules.
         interface_args.append("--overwrite")
         try:
-            subprocess.run(interface_args, check=True)
+            # print the executed command arguments
+            print(" ".join(interface_args))
+            logging.debug(" ".join(interface_args))
+            if len(interface_args) > 3:
+                subprocess.run(interface_args, check=True)
+            else:
+                print("command not executed insufficient arguments")
         except subprocess.CalledProcessError as err:
             logging.error(err)
 
@@ -333,6 +373,7 @@ class Tc(object):
         """
         try:
             subprocess.run(["ip", "link", "set", interface, "down"], check=True)
+            self.status.get_interface().set_active('false')
         except subprocess.CalledProcessError:
             logging.warning("Insufficient permissions")
 
@@ -345,6 +386,7 @@ class Tc(object):
         """
         try:
             subprocess.run(["ip", "link", "set", interface, "up"], check=True)
+            self.status.get_interface().set_active('true')
         except subprocess.CalledProcessError:
             logging.warning("Insufficient permissions")
 
@@ -358,13 +400,19 @@ class Agent(object):
         self.tc = Tc(self.status)
 
 
-stage_report = {}
-counter = 0
-
-
 class WebServerHandler(BaseHTTPRequestHandler):
+    _agent = Agent()
+    _stage_report = {}
+    _last_scheduled_timestamp = None
+
+    @staticmethod
+    def _update_report(stage_id):
+        WebServerHandler._stage_report[str(stage_id)] = WebServerHandler._agent.status.to_json()
 
     def do_POST(self):
+        if len(WebServerHandler._stage_report) == 0:
+            print("Set stage 0 report")
+            WebServerHandler._stage_report["0"] = WebServerHandler._agent.status.to_json()
         self.send_response(200)
         content_length = int(self.headers['Content-Length'])
         content_type = self.headers['Content-Type']
@@ -377,103 +425,79 @@ class WebServerHandler(BaseHTTPRequestHandler):
         response = BytesIO()
         response.write(b'Received: ' + body + b'\n')
         self.end_headers()
-        self.wfile.write(response.getvalue())
 
         content_string = body.decode('utf-8')
         content_json_array = json.loads(content_string)
 
-        agent = Agent()
+        scheduler = sched.scheduler(time.time, time.sleep)
 
-        global counter
-        stage_report['stage' + str(counter)] = agent.status.to_json()
-        counter += 1
+        for event in content_json_array:
+            stage_id = event['id']
+            scheduled_time = int(event['timestamp']) / 1000.0
+            scheduler.enterabs(scheduled_time, 0, lambda: do_action(self.path, WebServerHandler._agent, event))
+            scheduler.enterabs(scheduled_time + 1, 0, lambda :self._update_report(stage_id))
 
-        s = sched.scheduler(time.time, time.sleep)
-        current_time = int(content_json_array[0]['timestamp']) / 1000.0
-        s.enterabs(current_time, 0, lambda: scheduler(self.path, agent, content_json_array))
-        s.run()
+
+        threading.Thread(target=scheduler.run).start()
 
     def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-
-        if self.path == "/reports":
-            pprint.pprint(stage_report)
-
-
-def endpoint_application(content_json_array):
-    content_dict = {}
-    try:
-        content_dict['timestamp'] = content_json_array[0]['timestamp']
-        content_dict['name'] = content_json_array[0]['data']['name']
-        content_dict['cpu'] = content_json_array[0]['data']['cpu']
-        content_dict['memory'] = content_json_array[0]['data']['memory']
-        content_dict['active'] = content_json_array[0]['data']['active']
-    except KeyError:
-        pass
-
-    return content_dict
+        print(WebServerHandler._stage_report)
+        match = re.match(r'/reports/(.+)', self.path)
+        if match:
+            self.send_response(200)
+            self.end_headers()
+            stage_id = match.group(1)
+            self.wfile.write(WebServerHandler._stage_report[stage_id].encode())
+        else:
+            self.send_error(404)
+            self.end_headers()
 
 
-def endpoint_interface(content_json_array):
-    content_dict = {}
-    try:
-        content_dict['timestamp'] = content_json_array[0]['timestamp']
-        content_dict['id'] = content_json_array[0]['data']['id']
-        content_dict['active'] = content_json_array[0]['data']['active']
-        content_dict['bandwidth'] = content_json_array[0]['data']['bandwidth']
-    except KeyError:
-        pass
+def do_action(path, agent, content_json_array):
+    content_dict = content_json_array['data']
 
-    return content_dict
-
-
-def scheduler(path, agent, content_json_array):
     if path == "/application":
-        content_dict = endpoint_application(content_json_array)
-        schedule_application(agent, content_dict)
+        modify_application(agent, content_dict)
 
     if path == "/interface":
-        content_dict = endpoint_interface(content_json_array)
-        schedule_interface(agent, content_dict)
+        modify_interface(agent, content_dict)
 
 
-def schedule_application(agent, content_dict):
+def modify_application(agent, content_dict):
+    """
+    Apply modifications to specified application from scheduled event.
+    :param agent:
+    :param content_dict:
+    :return:
+    """
+
     if 'cpu' in content_dict:
         agent.docker.update_cpu_shares(content_dict['name'], content_dict['cpu'])
-        print("New cpu limit has been setup")
 
     if 'memory' in content_dict:
         agent.docker.update_memory_limit(content_dict['name'], content_dict['memory'])
-        print("New memory has been setup")
-
-    # if 'active' in content_dict and content_dict['active'] == 'true':
-    #     agent.docker.connect(content_dict['name'])
-    #
-    # if 'active' in content_dict and content_dict['active'] == 'false':
-    #     agent.docker.disconnect(content_dict['name'])
 
 
-def schedule_interface(agent, content_dict):
-    if 'bandwidth' in content_dict:
-        agent.tc.interface(content_dict['id'], bandwidth=content_dict['bandwidth'])
-        print("New bandwidth setup")
+def modify_interface(agent, content_dict):
+    """
+    Apply modifications to specified interface from scheduled event.
+    :param agent:
+    :param content_dict:
+    :return:
+    """
+    agent.tc.interface(content_dict['id'], **content_dict)
 
-    if 'active' in content_dict and content_dict['active'] == 'true':
+    if content_dict.get('active', None):
         agent.tc.enable(content_dict['id'])
-
-    if 'active' in content_dict and content_dict['active'] == 'false':
+    else:
         agent.tc.disable(content_dict['id'])
 
-
 def main():
+    port = 20200
+    server = HTTPServer(('', port), WebServerHandler)
+    print("Web server is running on port {}".format(port))
     try:
-
-        port = 20200
-        server = HTTPServer(('', port), WebServerHandler)
-        print("Web server is running on port {}".format(port))
         server.serve_forever()
-
     except KeyboardInterrupt:
         print(" ^C entered, stopping web server....")
         server.socket.close()

@@ -1,11 +1,11 @@
-# Get mapping and store it in Mapping.csv
-- name: create_mapping_csv
+# Get mapping and store it in Mapping.json
+- name: create_mapping_json
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Create mapping.csv
+    - name: Create mapping.json
       become: false
-      shell: echo "Public_DNS, Tag Name, Tag Role, Internal IP" > mapping.csv
+      shell: echo "[" > mapping.json
 
 - name: ec2_metadata
   hosts: all_nodes
@@ -30,9 +30,25 @@
         state: list
       register: ec2_tags
 
-    - name: Write to mapping.csv
+    - name: Write to mapping.json
       become: false
-      local_action: shell echo "{{ ansible_ec2_public_hostname }}, {{ ec2_tags.tags.Name }}, {{ ec2_tags.tags.Role }}, {{ ec2_tags.tags.InternalIP }}" >> mapping.csv
+      local_action: shell echo '{"ip"{{":"}} "{{ ansible_ec2_public_ipv4 }}", "id"{{":"}} "{{ ec2_tags.tags.Name }}" },' >> mapping.json
       register: mapping
     - debug:
        msg: "{{ mapping }}"
+
+- name: close_mapping_json
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Put everything list
+      become: false
+      shell: sed -i '1h;1!H;$!d;g;s/\(.*\),/\1/' mapping.json && echo "]" >> mapping.json
+
+- name: Dump to yaml
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Write to mapping.yml
+      script: JsonToYaml.py
+      ignore_errors: True

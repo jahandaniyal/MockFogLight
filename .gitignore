@@ -123,9 +123,9 @@ celerybeat.pid
 
 # Environments
 .env
-.venv
+.venv*
 env/
-venv/
+venv*/
 ENV/
 env.bak/
 venv.bak/
@@ -150,3 +150,9 @@ dmypy.json
 
 # Local history
 .history
+
+# generated yaml scripts
+mapping.csv
+mapping.json
+mapping.yml
+mockfog_application/vars/mapping.yml
