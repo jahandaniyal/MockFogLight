@@ -1,6 +1,7 @@
 .PHONY: build clean
 
 VENV=.env/bin/activate
+# The AWS ssh key. Default is mockfog.pem
 KEY=mockfog.pem
 
 build: clean
